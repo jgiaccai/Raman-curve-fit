@@ -25,7 +25,16 @@ import pandas as pd
 # File Parameters
 # Data fitting parameters
 
-NumPeaks = 3
+FitGOn = 1 # 1 is yes, 0 is no
+FitDOn = 1
+FitD2On = 0
+FitD3On = 0
+FitD4On = 0
+FitU1On = 1 #unidentified peak but need to include in envelope
+
+fitVersion = 2.0
+
+NumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On + FitU1On
 NumParams    = 3*NumPeaks      #{Number of parameters to fit}
 FitParam =np.zeros(NumParams) 
 bounds = np.zeros((NumParams,2))
@@ -36,7 +45,7 @@ D_bounds = [1350, 60, 100, 40]
 D2_bounds = [1620, 10, 20, 10]
 D3_bounds = [1500, 10, 45, 40]
 D4_bounds = [1200, 10, 60, 40]
-D5_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in 405 data
+U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in 405 data
 IIM = 0.8 #Initial intensity multiplier for G and D peaks 
 qBWF = -10
 Ext_Lambda = 000 #nm
