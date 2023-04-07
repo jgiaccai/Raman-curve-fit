@@ -1,5 +1,5 @@
 # Imports .xls file from KOS Raman system, Excel export with both x and y values saved.
-# makes spectrum plot for each 
+# makes spectrum plot for each spectrum in the Excel file
 
 import sys
 import numpy as np
@@ -42,9 +42,9 @@ for n in range(0,len(all_data.columns)/2):
     signal = all_data[(2*n)+1].values
     
     new_info = pd.read_excel(Loadfile, dtype = str, usecols = (2*n,), skiprows = (8), skipfooter = (len(all_data)), header = None)
-    if len(new_info.index) <> 0:
+    if len(new_info.index) != 0:
         Info = str(new_info[0].values)[2:-2]
-        print Info
+        print(Info)
         
     #cut-down region wave and signal to region of interest
     wave_fit = wave[(bkd_bounds[0]-1 <= wave) & (wave <= bkd_bounds[3])]
