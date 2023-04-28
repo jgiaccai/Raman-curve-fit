@@ -34,8 +34,10 @@ FitU1On = 1 #unidentified peak but need to include in envelope
 
 fitVersion = 2.0
 
-NumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On + FitU1On
-NumParams    = 3*NumPeaks      #{Number of parameters to fit}
+TotalNumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On + FitU1On
+NumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On
+NumPksApp = str(NumPeaks)+'fit'
+NumParams    = 3*TotalNumPeaks      #{Number of parameters to fit}
 FitParam =np.zeros(NumParams) 
 bounds = np.zeros((NumParams,2))
 
@@ -98,34 +100,48 @@ def BWF(xc,w,I):
 
 def EnterData():
     
-    global FitParam ,G_ints, D_ints, D5_ints, NumParams, G_bounds, D_bounds, D5_bounds, bounds
+    global FitParam, G_ints, D_ints, D5_ints, NumParams, G_bounds, D_bounds, D5_bounds, bounds
 
     FitParam[0] = G_bounds[0] # G peak position
     FitParam[1]  = D_bounds[0] # D peak position
-    FitParam[2] = D5_bounds[0] # D5 peak position
+    FitParam[2]  = D2_bounds[0] # D2 peak position
+    FitParam[3]  = D3_bounds[0] # D3 peak position
+    FitParam[4]  = D4_bounds[0] # D4 peak position
+    FitParam[5]  = U1_bounds[0] # U1 peak position
 
-    FitParam[3]  = G_bounds[2]  # G peak width
-    FitParam[4]  = D_bounds[2]  # D peak width
-    FitParam[5] = D5_bounds[2]  # D5 peak width
+    FitParam[6]  = G_bounds[2]  # G peak width
+    FitParam[7]  = D_bounds[2]  # D peak width
+    FitParam[8]  = D2_bounds[2]  # D2 peak width
+    FitParam[9]  = D3_bounds[2]  # D3 peak width
+    FitParam[10]  = D4_bounds[2]  # D4 peak width
+    FitParam[11]  = U1_bounds[2] # U1 peak width
 
     '''need to work G and D starting peak intensities from initial values'''
-    FitParam[6]  = IIM*G_ints  # G peak intensity  
-    FitParam[7]  = IIM*D_ints  # D peak intensity
-    FitParam[8] = 0.25 * FitParam[6]  # D5 peak intensity relative to G peak intensity
-    
-    Gfit = BWF(FitParam[0],FitParam[3],FitParam[6])
-    Dfit = lorentz(FitParam[1],FitParam[4],FitParam[7])
-    D5fit = lorentz(FitParam[2],FitParam[5],FitParam[8])
-    
-    ModelFit = Gfit + Dfit +D5fit
-    
+    FitParam[12]  = IIM*G_ints  # G peak intensity  
+    FitParam[13]  = IIM*D_ints  # D peak intensity
+    FitParam[14] = (0.4*FitParam[12])
+    FitParam[15] = (0.4*FitParam[13])
+    FitParam[16] = (0.4*FitParam[13])
+    FitParam[17]  = (0.25*FitParam[12]) 
+
+    Gfit = FitGOn*lorentz(FitParam[0],FitParam[6],FitParam[12])
+    Dfit = FitDOn*lorentz(FitParam[1],FitParam[7],FitParam[13])
+    D2fit = FitD2On*lorentz(FitParam[2],FitParam[8],FitParam[14])
+    D3fit = FitD3On*lorentz(FitParam[3],FitParam[9],FitParam[15])
+    D4fit = FitD4On*lorentz(FitParam[4],FitParam[10],FitParam[16])
+    U1fit = FitU1On*lorentz(FitParam[5],FitParam[11],FitParam[17])
+
+    ModelFit = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit    
     
     # fig = plt.figure(5)
     # ax50 = fig.add_subplot(111)
     # ax50.plot(x_fit, signal_fit,'.k', label = 'Experimental')
     # ax50.plot(x_fit, Gfit,'-g', label = 'G Peak Fit')
     # ax50.plot(x_fit, Dfit,'-b', label = 'D Peak Fit')
-    # ax50.plot(x_fit, D5fit, '-y', label = 'D5 peak fit')
+    # ax50.plot(x_fit, D2fit,'-y', label = 'D2 Peak Fit')
+    # ax50.plot(x_fit, D3fit,'-c', label = 'D3 Peak Fit')
+    # ax50.plot(x_fit, D4fit,'-m', label = 'D4 Peak Fit')
+    # ax50.plot(x_fit, U1fit, '.g', label = 'U1 Peak Fit')
     # ax50.plot(x_fit, ModelFit,'-r', label = 'Summed Peak Fit')
     # ax50.set_xlabel(r'Raman Shift / cm$^-$$^1$', fontsize=18)
     # plt.autoscale(enable=True, axis='x', tight=True)
@@ -135,12 +151,7 @@ def EnterData():
     # plt.text(1075, 14100, 'ink', fontsize=20)
     # plt.tick_params(axis='both', which='major', labelsize=18)
     # plt.tight_layout()
-    # #ax40.legend(bbox_to_anchor=(0.00, 0.70, .3, .152), loc=3,
-    # #        ncol=1, mode='expand', frameon=True, borderaxespad=0.)
-    # #
-    # 
-    # 
-    # plt.savefig(SaveName + 'initialfit_3BWFLS.jpg')
+    # plt.savefig(SaveName + 'initialfit.jpg')
     # #plt.show()
     # plt.close()
     
@@ -148,20 +159,31 @@ def EnterData():
     
     bounds[0] = (G_bounds[0]-G_bounds[1],G_bounds[0]+G_bounds[1])
     bounds[1] = (D_bounds[0]-D_bounds[1],D_bounds[0]+D_bounds[1])
-    bounds[2] = (D5_bounds[0]-D5_bounds[1],D5_bounds[0]+D5_bounds[1])
+    bounds[2] = (D2_bounds[0]-D2_bounds[1],D2_bounds[0]+D2_bounds[1])
+    bounds[3] = (D3_bounds[0]-D3_bounds[1],D3_bounds[0]+D3_bounds[1])
+    bounds[4] = (D4_bounds[0]-D4_bounds[1],D4_bounds[0]+D4_bounds[1])
+    bounds[5] = (U1_bounds[0]-U1_bounds[1],U1_bounds[0]+U1_bounds[1])
+
     
-    bounds[3] = (G_bounds[2]-G_bounds[3],G_bounds[2]+G_bounds[3])
-    bounds[4] = (D_bounds[2]-D_bounds[3],D_bounds[2]+D_bounds[3])
-    bounds[5] = (D5_bounds[2]-D5_bounds[3],D5_bounds[2]+D5_bounds[3])
+    bounds[6] = (G_bounds[2]-G_bounds[3],G_bounds[2]+G_bounds[3])
+    bounds[7] = (D_bounds[2]-D_bounds[3],D_bounds[2]+D_bounds[3])
+    bounds[8] = (D2_bounds[2]-D2_bounds[3],D2_bounds[2]+D2_bounds[3])
+    bounds[9] = (D3_bounds[2]-D3_bounds[3],D3_bounds[2]+D3_bounds[3])
+    bounds[10] = (D4_bounds[2]-D4_bounds[3],D4_bounds[2]+D4_bounds[3])
+    bounds[11] = (U1_bounds[0]-U1_bounds[1],U1_bounds[0]+U1_bounds[1])
+
     
-    bounds[6] = (0.5*G_ints,1.2*G_ints)
-    bounds[7] = (0.5*D_ints,1.2*D_ints)
-    bounds[8] = (1,0.5*G_ints)
+    bounds[12] = (0.5*G_ints,1.2*G_ints)
+    bounds[13] = (0.5*D_ints,1.2*D_ints)
+    bounds[14] = (1,0.5*G_ints)
+    bounds[15] = (1,0.5*D_ints)
+    bounds[16] = (1,0.5*D_ints)
+    bounds[17] = (1,0.5*G_ints)
     
     #print('Bounds are ',bounds)
     
 def Evaluate(EvalSimp):   
-    global NumParams, G_bounds, D_bounds, D5_bounds
+    global NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds
     global x_fit, signal_fit, Residuals
     
     '''
@@ -172,46 +194,20 @@ def Evaluate(EvalSimp):
     (4) punish residuals if various parameters are too far from real
     '''
     
-    Gfit = BWF(EvalSimp[0],EvalSimp[3],EvalSimp[6])
-    Dfit = lorentz(EvalSimp[1],EvalSimp[4],EvalSimp[7])
-    D5fit = lorentz(EvalSimp[2],EvalSimp[5],EvalSimp[8])
+    Gfit = FitGOn*lorentz(EvalSimp[0],EvalSimp[6],EvalSimp[12])
+    Dfit = FitDOn*lorentz(EvalSimp[1],EvalSimp[7],EvalSimp[13])
+    D2fit = FitD2On*lorentz(EvalSimp[2],EvalSimp[8],EvalSimp[14])
+    D3fit = FitD3On*lorentz(EvalSimp[3],EvalSimp[9],EvalSimp[15])
+    D4fit = FitD4On*lorentz(EvalSimp[4],EvalSimp[10],EvalSimp[16])
+    U1fit = FitU1On*lorentz(EvalSimp[5], EvalSimp[11], EvalSimp[17])
+
     
-    EvalFit = Gfit + Dfit + D5fit
+    EvalFit = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit
     
     Residuals = (EvalFit - signal_fit)
-    ErrorSum = np.linalg.norm(Residuals)
+    ErrorSum = np.sum(abs(Residuals))
     
-    '''Residual punishment--similar to JDH
-    (1) D2/D3/D4 intensity is higher than G or D intensity
-    (2) peak locations vary too much from my ideal
-    (3) peak intensity is negative
-    (4) peak width is negative
-    (5) between 1200 and 1700 signal fit is more than 1% different than true signal
-    '''
-    ErrorWeight = 1
-    # CheckThese = [1290,1300,1310,1320,1330,1340,1350,1360,1470,1490,1520,1550,1560,1570,1580,1590,1600]
-    # for n in CheckThese:
-    #     if Residuals[n-925] > 0.1*signal_fit[n-925]: #xvalue of resds is wavenumber - 925
-    #         ErrorWeight = ErrorWeight*(100*Residuals[n-925])/signal_fit[n-925]
-    #         #print n, 'is ',Residuals[n-925]/signal_fit[n-925]
-    # 
-    # for n in range(0,len(EvalSimp)):
-    #     if EvalSimp[n] <0:
-    #         ErrorWeight = ErrorWeight *10
-    #         #print 'cond 1'
-    #     if n == 0:
-    #         if abs(1580 - EvalSimp[0])>G_bounds[1]:
-    #             ErrorWeight = ErrorWeight *10
-    #             #print 'cond 3'
-    #     if n == 1:
-    #         if abs(1350 - EvalSimp[1])>D_bounds[1]:
-    #             ErrorWeight = ErrorWeight *10
-    #             #print 'cond 4'
-    # 
-    # #print 'ErrorWeight for array ', iterations,' is ',ErrorWeight
-    WeightResiduals = ErrorSum*ErrorWeight
-    
-    return(WeightResiduals)
+    return(ErrorSum)
 
 
 
@@ -221,7 +217,6 @@ for file in os.listdir('.'):
         print(file)
         Loadfile = file
         filename = Loadfile[:-4]
-        RefMat = Loadfile[:-4]
         
         (CollDet,Ext_Lambda) = ReadCollDetails(file)
         Ext_Lambda = int(Ext_Lambda)
@@ -238,7 +233,7 @@ for file in os.listdir('.'):
             signal = xy_data[n]
             SpotNo = n
             print(n)
-            SaveName = 'results/' + RefMat +'_POS'+ str(n).zfill(2)
+            SaveName = 'results/' + filename +'_POS'+ str(n).zfill(2) + '_'+ NumPksApp
             
             #Fit Background and cut-down region wavenum and signal to region of interest
             x_fit = wavenum[(bkd_bounds[0] <= wavenum) & (wavenum <= bkd_bounds[3])] # X data cut down to bkg boundaries
@@ -301,7 +296,7 @@ for file in os.listdir('.'):
             ax.set_ylabel('Raman Intensity')
             ax.set_ylim(0, 1.5*max(signal_fit))
             #plt.show()
-            fname = str(SaveName) + '_base_3LS.jpg'
+            fname = str(SaveName) + '_base.jpg'
             plt.savefig(fname)
             plt.close()
             
@@ -333,16 +328,23 @@ for file in os.listdir('.'):
                 print(minres.message)
                 fit_results = np.zeros(NumParams)
                 continue
-            Gfit = BWF(fit_results[0],fit_results[3],fit_results[6])
-            Dfit = lorentz(fit_results[1],fit_results[4],fit_results[7])
-            D5fit = lorentz(fit_results[2],fit_results[5],fit_results[8])
-                
-            ModelFit = Gfit + Dfit +D5fit
+            Gfit = FitGOn*lorentz(fit_results[0],fit_results[6],fit_results[12])
+            Dfit = FitDOn*lorentz(fit_results[1],fit_results[7],fit_results[13])
+            D2fit = FitD2On*lorentz(fit_results[2],fit_results[8],fit_results[14])
+            D3fit = FitD3On*lorentz(fit_results[3],fit_results[9],fit_results[15])
+            D4fit = FitD4On*lorentz(fit_results[4],fit_results[10],fit_results[16])
+            U1fit = FitU1On*lorentz(fit_results[5],fit_results[11],fit_results[17])
+    
+            ModelFit = Gfit + Dfit +D2fit + D3fit + D4fit + U1fit
             
-            G_ints = fit_results[6]  #intensities from the fit, not the initial values
-            D_ints = fit_results[7]
-            D5_ints = fit_results[8]
-                                    
+            G_ints = fit_results[12]  #intensities from the fit, not the initial values
+            D_ints = fit_results[13]
+            D2_ints = FitD2On*fit_results[14]
+            D3_ints = FitD3On*fit_results[15]
+            D4_ints = FitD4On*fit_results[16]
+            U1_ints = fit_results[17]
+            TotalIntensity = G_ints + D_ints + D2_ints + D3_ints + D4_ints
+           
             #fit_error = np.corrcoef(ModelFit, signal_fit)[0][1] # Calculates R2 from Erin June 2016
             ss_res = np.sum((Residuals) ** 2)
             ss_tot = np.sum((signal_fit - np.mean(signal_fit)) ** 2)
@@ -356,7 +358,10 @@ for file in os.listdir('.'):
             ax40.plot(x_fit, signal_fit,'.k', label = 'Experimental')
             ax40.plot(x_fit, Gfit,'-g', label = 'G Peak Fit')
             ax40.plot(x_fit, Dfit,'-b', label = 'D Peak Fit')
-            ax40.plot(x_fit, D5fit, '-y', label = 'D5 peak fit')
+            ax40.plot(x_fit , D2fit,'-y', label = 'D2 Peak Fit')
+            ax40.plot(x_fit, D3fit,'-c', label = 'D3 Peak Fit')
+            ax40.plot(x_fit , D4fit,'-m', label = 'D4 Peak Fit')
+            ax40.plot(x_fit, U1fit, '-y', label = 'U1 peak fit')
             ax40.plot(x_fit, ModelFit,'-r', label = 'Summed Peak Fit')
             ax40.set_xlabel(r'Raman Shift / cm$^{-1}$', fontsize=18)
             plt.autoscale(enable=True, axis='x', tight=True)
@@ -380,7 +385,7 @@ for file in os.listdir('.'):
             #plt.ylim(min(Residuals)*1.15,max(Residuals)*1.15)
             plt.ylim(min(Residuals)*1.15,130)
             
-            plt.savefig(SaveName + 'fit_3BWFLS.jpg')
+            plt.savefig(SaveName + 'Fit.jpg')
             #plt.show()
             plt.close()
                     
@@ -487,35 +492,53 @@ for file in os.listdir('.'):
             #ax.set_ylim(0, 2)
             ax.set_xlim(0.1, 100)
             ax.set_ylim(0.01, 100)
-            plt.savefig(SaveName + '_Ratio_3BWFLS.jpg')
+            plt.savefig(SaveName + '_Ratio.jpg')
             
             #plt.show()
             plt.close()
             
             
-            f = open(SaveName+'_3BWFLS_fitfile.txt',"w")
+            f = open(SaveName+'_fitfile.txt',"w")
             f.write("{}\t{}\t{}\n".format('Collection Details',CollDet,''))
             f.write("{}\t{}\t{}\n".format('Original File',Loadfile,''))
+            f.write("{}\t{}\t{}\n".format('Laser Wavelength', Ext_Lambda,''))
             f.write("{}\t{}\t{}\n".format('Baseline R2??', 1-(residuals[0]/sum(bkg_signal)), 0) )
             f.write("{}\t{}\t{}\n".format('Baseline Flatness??', Signal_hi/Signal_lo, 0) )
             f.write("{}\t{}\t{}\n".format('Model Fit R2', r2, 0) )
             f.write("{}\t{}\t{}\n".format('Q factor', qBWF, 0) )
             
             f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], 0) )
-            f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[3], 0 ))
-            f.write("{}\t{}\t{}\n".format('G Band Peak Intensity', fit_results[6],0))
+            f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], 0 ))
+            f.write("{}\t{}\t{}\n".format('G Band Peak Intensity', fit_results[12],0))
             
             f.write("{}\t{}\t{}\n".format('D Band Peak Position',fit_results[1],0))
-            f.write("{}\t{}\t{}\n".format('D Band Peak Width',fit_results[4],0))
-            f.write("{}\t{}\t{}\n".format('D Band Peak Intensity',fit_results[7],0))
+            f.write("{}\t{}\t{}\n".format('D Band Peak Width',fit_results[7],0))
+            f.write("{}\t{}\t{}\n".format('D Band Peak Intensity',fit_results[13],0))
             
-            f.write("{}\t{}\t{}\n".format('D5 Band Peak Position',fit_results[2],0))
-            f.write("{}\t{}\t{}\n".format('D5 Band Peak Width',fit_results[5],0))
-            f.write("{}\t{}\t{}\n".format('D5 Band Peak Intensity',fit_results[8],0))
+            f.write("{}\t{}\t{}\n".format('D2 Band Peak Position',fit_results[2],0))
+            f.write("{}\t{}\t{}\n".format('D2 Band Peak Width',fit_results[8],0))
+            f.write("{}\t{}\t{}\n".format('D2 Band Peak Intensity',fit_results[14],0))
+            
+            f.write("{}\t{}\t{}\n".format('D3 Band Peak Position',fit_results[3],0))
+            f.write("{}\t{}\t{}\n".format('D3 Band Peak Width',fit_results[9],0))
+            f.write("{}\t{}\t{}\n".format('D3 Band Peak Intensity',fit_results[15],0))
+            
+            f.write("{}\t{}\t{}\n".format('D4 Band Peak Position',fit_results[4],0))
+            f.write("{}\t{}\t{}\n".format('D4 Band Peak Width',fit_results[10],0))
+            f.write("{}\t{}\t{}\n".format('D4 Band Peak Intensity',fit_results[16],0))
             
             f.write("{}\t{}\t{}\n".format('Conjugation Length (low)',low_La,0))
             f.write("{}\t{}\t{}\n".format('Conjugation Length (high)',high_La,0))
             f.write("{}\t{}\t{}\n".format('ID/IG',Exp_ratio,0))
-            f.write("{}\t{}\t{}\n".format('Location', locations[n],''))
-            f.write("{}\t{}\t{}\n".format('Laser Wavelength', Ext_Lambda,''))
+    
+            f.write("{}\t{}\t{}\n".format('ID/total ratio', fit_results[13]/TotalIntensity,0))
+            f.write("{}\t{}\t{}\n".format('ID2/total ratio', fit_results[14]/TotalIntensity,0))
+            f.write("{}\t{}\t{}\n".format('ID3/total ratio', fit_results[15]/TotalIntensity,0))
+            f.write("{}\t{}\t{}\n".format('ID4/total ratio', fit_results[16]/TotalIntensity,0))
+            f.write("{}\t{}\t{}\n".format('IG/total ratio',fit_results[12]/TotalIntensity,0))
+            f.write("{}\t{}\t{}\n".format('ID2/IG ratio', fit_results[14]/fit_results[12],0))
+            f.write("{}\t{}\t{}\n".format('ID3/ID ratio', fit_results[15]/fit_results[13],0))
+            f.write("{}\t{}\t{}\n".format('ID4/ID ratio', fit_results[16]/fit_results[13],0))
+            f.write("{}\t{}\t{}\n".format('bkd_low',bkd_bounds[0],bkd_bounds[1]))
+            f.write("{}\t{}\t{}\n".format('bkd_hi',bkd_bounds[2],bkd_bounds[3])) 
             f.close()
