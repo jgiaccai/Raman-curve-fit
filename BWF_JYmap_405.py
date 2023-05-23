@@ -4,6 +4,7 @@
 ## 20191002 expanding bounds based on scatter plots
 ## 20201207 getting scan details from metadata
 ## 20230408 altered to allow fitting of any number of Lorentzian peaks, defined lines 29-34
+## 20230522 altered to fit G peak as a BWF with q of -10
 
 import sys
 import numpy as np
@@ -39,13 +40,14 @@ fitVersion = 2.0
 base_order = 1 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [1000, 1100, 1800, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
-G_bounds = [1590, 35, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
+G_bounds = [1590, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
 D_bounds = [1350, 60, 100, 40]
 D2_bounds = [1620, 10, 20, 10]
 D3_bounds = [1500, 10, 45, 40]
 D4_bounds = [1225, 10, 60, 40]
 U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in 405 data
 IIM = 0.8 #Initial intensity multiplier for G and D peaks 
+qBWF = -10
 
 Ext_Lambda = 000 #nm
 step_size = 1 #nm x-wave spacing for final data
@@ -53,7 +55,7 @@ iterations = 50
 
 TotalNumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On + FitU1On
 NumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On
-NumPksApp = str(NumPeaks)+'Lor'
+NumPksApp = str(NumPeaks)+'BWF'
 NumParams    = 3*6     #{Number of parameters to fit}
 FitParam =np.zeros(NumParams) 
 bounds = np.zeros((NumParams,2))
@@ -88,7 +90,7 @@ def ReadCollDetails(inputFilename):
             if '#ND' in lineList[i]:
                 lp = lineList[i].split('=')[1][1:]
             i = i+1
-    CollDet = 'NMNH '+acqtime+'s '+NoScans+ 'sc ' + Laser + 'lp ' +lp
+    CollDet = 'NMNH '+acqtime+'s '+NoScans+ 'sc ' + Laser + ' lp ' +lp
     txtFile.close()
     return CollDet,Ext_Lambda
 
@@ -369,37 +371,39 @@ for file in os.listdir('.'):
             plt.autoscale(enable=True, axis='y', tight=True)
             ax40.set_ylabel('Raman Intensity', fontsize=18)
             ax40.set_ylim(0, max(signal_fit)*1.2)
-            plt.text(1075, 14100, 'ink', fontsize=20)
+            #plt.text(1075, 14100, 'ink', fontsize=20)
             plt.tick_params(axis='both', which='major', labelsize=18)
-            #plt.tight_layout()
+            plt.tight_layout()
             #ax40.legend(bbox_to_anchor=(0.00, 0.70, .3, .152), loc=3,
             #        ncol=1, mode='expand', frameon=True, borderaxespad=0.)
             #
             # ax40 = fig.add_subplot(111)
-            ax41 = plt.axes([0.185, .88, .787, .1])
-            ax41.plot(x_fit,Residuals, '.b')
+            ax41 = plt.axes([0.172, .9, .802, .1])
+            ax41.plot(x_fit[4:-2],Residuals[4:-2], '.b')
             #ax41.set_ylabel('Residuals')
             plt.setp(ax41, xticks=[1000,1200,1400,1600,1800], yticks=[-100,0,100])
             ax41.tick_params(direction='in',labelbottom=False,labelleft=False)
             plt.autoscale(enable=True, axis='x', tight=True) 
             
-            #plt.ylim(min(Residuals)*1.15,max(Residuals)*1.15)
-            plt.ylim(min(Residuals)*1.15,130)
+            plt.ylim(min(Residuals[4:-2])*1.15,max(Residuals[4:-2])*1.15)
+            #plt.ylim(min(Residuals)*1.15,130)
             
             plt.savefig(SaveName + '_fit.jpg')
             #plt.show()
             plt.close()
                     
-            # Uncertainty analysis
-            G_error = [0]*iterations
-            D_error = [0]*iterations
-            for i in range(0, iterations):
-                model_error = ModelFit + fit_error*np.random.randn(1)/4*ModelFit
-                G_error[i] =model_error[np.where(x_fit == np.around(fit_results[0],0) )[0][0]]
-                D_error[i] = model_error[np.where(x_fit == np.around(fit_results[1],0) )[0][0]]
-            
-            G_ints_error =  np.std(G_error) 
-            D_ints_error =  np.std(D_error)
+            #  =============================================================================
+            #             # Uncertainty analysis
+            #             G_error = [0]*iterations
+            #             D_error = [0]*iterations
+            #             for i in range(0, iterations):
+            #                 model_error = ModelFit + fit_error*np.random.randn(1)/4*ModelFit
+            #                 G_error[i] =model_error[np.where(x_fit == np.around(fit_results[0],0) )[0][0]]
+            #                 D_error[i] = model_error[np.where(x_fit == np.around(fit_results[1],0) )[0][0]]
+            #             
+            #             G_ints_error =  np.std(G_error) 
+            #             D_ints_error =  np.std(D_error)
+            # =============================================================================
                 
             #print 'G Band Peak Position: ', fit_results[0]
             #print 'G Band Peak Width: ', fit_results[2]
@@ -410,7 +414,7 @@ for file in os.listdir('.'):
             
             # ID/IG Ratio
             Exp_ratio = D_ints/G_ints
-            Exp_ratio_err = Exp_ratio*((G_ints_error/G_ints)**2 + (D_ints_error/D_ints)**2)**0.5
+            #Exp_ratio_err = Exp_ratio*((G_ints_error/G_ints)**2 + (D_ints_error/D_ints)**2)**0.5
             
             #print 'ID/IG Ratio: ', '%.3f' %Exp_ratio #,'+/- ',  '%.3f' % Exp_ratio_err 
             #print 'q = ',qBWF
@@ -447,10 +451,10 @@ for file in os.listdir('.'):
             low_La_max_Ca = La_low[np.where(abs(Max_Ratio_low - Exp_ratio) == min(abs(Max_Ratio_low - Exp_ratio)))[0][0]]
             low_La_error_Ca = abs(low_La_min_Ca - low_La_max_Ca)
             
-            low_La_min_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_err) ) == min(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_err))))[0][0]]
-            low_La_max_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_err)) == min(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_err))))[0][0]]
-            low_La_error_ratio = abs(low_La_min_ratio - low_La_max_ratio)
-            low_La_error = low_La*((low_La_error_ratio/low_La)**2 + (low_La_error_Ca/low_La)**2)**0.5
+            #low_La_min_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_err) ) == min(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_err))))[0][0]]
+            #low_La_max_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_err)) == min(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_err))))[0][0]]
+            #low_La_error_ratio = abs(low_La_min_ratio - low_La_max_ratio)
+            #low_La_error = low_La*((low_La_error_ratio/low_La)**2 + (low_La_error_Ca/low_La)**2)**0.5
             #print 'Conjugation Length (low): ', '%.3f' %low_La,  '+/- ', '%.3f' %low_La_error, 'nm'
             
             high = np.where(La_Range >=3)[0]
@@ -468,10 +472,10 @@ for file in os.listdir('.'):
             high_La_max_Ca = La_high[np.where(abs(Max_Ratio_high - Exp_ratio) == min(abs(Max_Ratio_high - Exp_ratio)))[0][0]]
             high_La_error_Ca = abs(high_La_min_Ca - high_La_max_Ca)
             
-            high_La_min_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_err) ) == min(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_err))))[0][0]]
-            high_La_max_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_err)) == min(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_err))))[0][0]]
-            high_La_error_ratio = abs(high_La_min_ratio - high_La_max_ratio)
-            high_La_error = high_La*((high_La_error_ratio/high_La)**2 + (high_La_error_Ca/high_La)**2)**0.5
+            #high_La_min_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_err) ) == min(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_err))))[0][0]]
+            #high_La_max_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_err)) == min(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_err))))[0][0]]
+            #high_La_error_ratio = abs(high_La_min_ratio - high_La_max_ratio)
+            #high_La_error = high_La*((high_La_error_ratio/high_La)**2 + (high_La_error_Ca/high_La)**2)**0.5
             #print 'Conjugation Length (high): ', '%.3f' %high_La,  '+/- ', '%.3f' %high_La_error, 'nm'
             
             Ratio = [Exp_ratio, Exp_ratio]
@@ -502,14 +506,17 @@ for file in os.listdir('.'):
             f = open(SaveName+'_fitfile.txt',"w")
             f.write("{}\t{}\t{}\n".format('Collection Details',CollDet,''))
             f.write("{}\t{}\t{}\n".format('Original File',Loadfile,''))
-            f.write("{}\t{}\t{}\n".format('Laser Wavelength', Ext_Lambda,''))
+            f.write("{}\t{}\t{}\n".format('position',str(n).zfill(2),'0'))            
+            f.write("{}\t{}\t{}\n".format('Laser Wavelength', Ext_Lambda,'0'))
+            f.write("{}\t{}\t{}\n".format('Num Peaks Fit', NumPeaks,'0'))
 
             f.write("{}\t{}\t{}\n".format('Baseline Order', base_order, 0) )            
             f.write("{}\t{}\t{}\n".format('Baseline R2', BaseR2, 0) )
             f.write("{}\t{}\t{}\n".format('Baseline Slope', BaseSlope, 0) )
             
-            
             #f.write("{}\t{}\t{}\n".format('Model Fit S', FitS, 0) )
+            
+            f.write("{}\t{}\t{}\n".format('qBWF', qBWF, 0) )
             
             f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], 0) )
             f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], 0 ))
