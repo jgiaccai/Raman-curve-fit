@@ -6,7 +6,37 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-Data = pd.DataFrame()
+#Data = pd.DataFrame()
+tempData = []
+
+Position=[]
+ScanInfo=[]
+ExcLaser=[]
+NumPeaksFit=[]
+
+BaselineFlatness=[]
+
+qBWF=[]
+GPeakPosition=[]
+GPeakWidth=[]
+GIntensity=[]
+DPeakPosition=[]
+DPeakWidth=[]
+DIntensity=[]
+D2PeakPosition=[]
+D2PeakWidth=[]
+D2Intensity=[]
+D3PeakPosition=[]
+D3PeakWidth=[]
+D3Intensity=[]
+D4PeakPosition=[]
+D4PeakWidth=[]
+D4Intensity=[]
+ConjLength=[]
+IDIGRatio=[]
+Filename=[]
+
+
 for file in os.listdir('.'):
     if fnmatch.fnmatch(file, '*_fitfile.txt'):
         fullFilename = file
@@ -19,13 +49,13 @@ for file in os.listdir('.'):
 
         position = data[0]        
         exc_laser = data[1]
-        NumPks = data[2]
+        num_pks = data[2]
         
         baseline_order = data[3]
         baseline_r2 = data[4]
         baseline_flatness = data[5]
         #model_r2 = data[2]
-        qBWF = data[6]
+        q_BWF = data[6]
         g_pos = data[7]
         g_width = data[8]
         g_intensity = data[9]
@@ -51,28 +81,28 @@ for file in os.listdir('.'):
         d4_intensity = data[21]
         d4_ints_error = error[21]
         
-        La = data[22]
+        La_val = data[22]
         La_error = error[22]
         ID_IG = data[24]
         ID_IG_error = error[24]
         #SNRD = data[11]
         #noise = data[12]
         
-        ScanInfo = np.genfromtxt(fullFilename, dtype = str, delimiter = '\t', usecols = (1), skip_footer = (len(data)+1))
+        scan_info = np.genfromtxt(fullFilename, dtype = str, delimiter = '\t', usecols = (1), skip_footer = (len(data)+1))
 
         #########################  
         # to solve concat/append error.  concat all the bits into individual lists, then after all loops run, concat into a df below
 
         
-        Data = Data.append({'Position': position, 
-            'Scan Info': ScanInfo, 
+        tempData.append({'Position': position, 
+            'Scan Info': scan_info, 
             'Exc Laser': exc_laser,
-            'Num Peaks Fit': NumPks,
+            'Num Peaks Fit': num_pks,
             
             'Baseline Flatness': baseline_flatness, 
             
             #'Model R2': model_r2, 
-            'qBWF': qBWF, 
+            'qBWF': q_BWF, 
             'G Peak Position': g_pos, 
             'G Peak Width':g_width, 
             'G Intensity': g_intensity ,
@@ -92,16 +122,17 @@ for file in os.listdir('.'):
             'D4 Peak Position': d4_pos,
             'D4 Peak Width': d4_width, 
             'D4 Intensity': d4_intensity,
-            'Conj Length': La , 
+            'Conj Length': La_val , 
             #'Conj Length error': La_error , 
             'ID IG Ratio': ID_IG ,
             #'ID IG Ratio error': ID_IG_error ,
             'Filename': filename ,
             #'Noise': noise ,
             #'SNR D band': SNRD ,  
-            }, ignore_index=True)
-
-# this is where concat the individual lists into dataframes will go--outside the loop            
+            })
+        
+# this is where concat the individual lists into dataframes will go--outside the loop  
+Data = pd.DataFrame(tempData)          
 Data.to_csv('RamanFit_summary.csv',index=False,header=True)  
 
 
