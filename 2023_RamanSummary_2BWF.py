@@ -59,6 +59,10 @@ for file in os.listdir('.'):
         #noise = data[12]
         
         ScanInfo = np.genfromtxt(fullFilename, dtype = str, delimiter = '\t', usecols = (1), skip_footer = (len(data)+1))
+
+        #########################  
+        # to solve concat/append error.  concat all the bits into individual lists, then after all loops run, concat into a df below
+
         
         Data = Data.append({'Position': position, 
             'Scan Info': ScanInfo, 
@@ -96,6 +100,8 @@ for file in os.listdir('.'):
             #'Noise': noise ,
             #'SNR D band': SNRD ,  
             }, ignore_index=True)
+
+# this is where concat the individual lists into dataframes will go--outside the loop            
 Data.to_csv('RamanFit_summary.csv',index=False,header=True)  
 
 
