@@ -29,9 +29,9 @@ import pandas as pd
 
 FitGOn = 1 # 1 is yes, 0 is no
 FitDOn = 1
-FitD2On = 1
-FitD3On = 1
-FitD4On = 1
+FitD2On = 0
+FitD3On = 0
+FitD4On = 0
 FitU1On = 1 #unidentified peak but need to include in envelope for 405 etc
 
 fitVersion = 2.0
@@ -92,6 +92,9 @@ def ReadCollDetails(inputFilename):
     txtFile.close()
     return CollDet,Ext_Lambda
 
+#physics suggests Raman of solid should be Gaussian--why not here? 
+#(gases Lorentzian, liquids Gaussian-Laurentzian or Voigt)
+
 def lorentz(xc, w, I):  
     global x_fit
     s = ((x_fit - xc)/w)
@@ -128,7 +131,7 @@ def EnterData():
     FitParam[16] = (0.4*FitParam[13])
     FitParam[17]  = (0.25*FitParam[12]) 
 
-    Gfit = FitGOn*lorentz(FitParam[0],FitParam[6],FitParam[12])
+    Gfit = FitGOn*BWF(FitParam[0],FitParam[6],FitParam[12])
     Dfit = FitDOn*lorentz(FitParam[1],FitParam[7],FitParam[13])
     D2fit = FitD2On*lorentz(FitParam[2],FitParam[8],FitParam[14])
     D3fit = FitD3On*lorentz(FitParam[3],FitParam[9],FitParam[15])
@@ -193,10 +196,9 @@ def Evaluate(EvalSimp):
     (1) evaluate Lorentzian for each peak
     (2) Add all peak fits together for total peak fit
     (3) Subtract total peak fit from real data for initial residuals
-    (4) punish residuals if various parameters are too far from real
     '''
     
-    Gfit = FitGOn*lorentz(EvalSimp[0],EvalSimp[6],EvalSimp[12])
+    Gfit = FitGOn*BWF(EvalSimp[0],EvalSimp[6],EvalSimp[12])
     Dfit = FitDOn*lorentz(EvalSimp[1],EvalSimp[7],EvalSimp[13])
     D2fit = FitD2On*lorentz(EvalSimp[2],EvalSimp[8],EvalSimp[14])
     D3fit = FitD3On*lorentz(EvalSimp[3],EvalSimp[9],EvalSimp[15])
@@ -207,7 +209,7 @@ def Evaluate(EvalSimp):
     EvalFit = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit
     
     Residuals = (EvalFit - signal_fit)
-    ErrorSum = np.sum(abs(Residuals))
+    ErrorSum = np.sum((Residuals)**2)
     
     return(ErrorSum)
 
@@ -263,9 +265,11 @@ for file in os.listdir('.'):
                 count += 1
                 
             ## Option for Linear fit for baseline fit
-            BasePara, BaseResiduals = poly.polyfit(bkg_x, bkg_signal, base_order, full = True)
+            BasePara, BaseRegrStat = poly.polyfit(bkg_x, bkg_signal, base_order, full = True)
             baseline = poly.polyval(x_fit, BasePara)
-            #print 'R2 Baseline: ', 1-(residuals[0]/sum(bkg_signal))
+            BaseTSS = ((bkg_signal - np.mean(bkg_signal))**2).sum()
+            BaseR2= 1-(BaseRegrStat[0]/BaseTSS) #should work regardless of order of fit
+            BaseSlope = BasePara[0] #only works for first order baseline fits
             
             ## Option for 2d Order polynomial fit for baseline fit
             # BasePara, residuals, rank, singular_values, rcond  =  np.polyfit(bkg_x,bkg_signal,2, full = True)
@@ -326,7 +330,7 @@ for file in os.listdir('.'):
                 print(minres.message)
                 fit_results = np.zeros(NumParams)
                 continue
-            Gfit = FitGOn*lorentz(fit_results[0],fit_results[6],fit_results[12])
+            Gfit = FitGOn*BWF(fit_results[0],fit_results[6],fit_results[12])
             Dfit = FitDOn*lorentz(fit_results[1],fit_results[7],fit_results[13])
             D2fit = FitD2On*lorentz(fit_results[2],fit_results[8],fit_results[14])
             D3fit = FitD3On*lorentz(fit_results[3],fit_results[9],fit_results[15])
@@ -345,8 +349,9 @@ for file in os.listdir('.'):
            
             ss_res = np.sum((Residuals) ** 2)
             ss_tot = np.sum((signal_fit - np.mean(signal_fit)) ** 2)
-            r2 = 1 - (ss_res / ss_tot)
-            fit_error = r2  #Coefficient of Determination to determine r-squared
+            # can't use R2 on Gaussian or Lorentzian fits, so need to use standard error regression
+            
+
             
             # Figure 4 Plot of individual peak fits and total peak fit with experimental
             fig = plt.figure(4)
@@ -500,11 +505,11 @@ for file in os.listdir('.'):
             f.write("{}\t{}\t{}\n".format('Laser Wavelength', Ext_Lambda,''))
 
             f.write("{}\t{}\t{}\n".format('Baseline Order', base_order, 0) )            
-            #f.write("{}\t{}\t{}\n".format('Baseline R2', 1-(Baseresiduals[0]/sum(bkg_signal)), 0) )
-            f.write("{}\t{}\t{}\n".format('Baseline Flatness??', Signal_hi/Signal_lo, 0) )
+            f.write("{}\t{}\t{}\n".format('Baseline R2', BaseR2, 0) )
+            f.write("{}\t{}\t{}\n".format('Baseline Slope', BaseSlope, 0) )
             
             
-            f.write("{}\t{}\t{}\n".format('Model Fit R2', r2, 0) )
+            #f.write("{}\t{}\t{}\n".format('Model Fit S', FitS, 0) )
             
             f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], 0) )
             f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], 0 ))
