@@ -211,7 +211,7 @@ def Evaluate(EvalSimp):
     EvalFit = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit
     
     Residuals = (EvalFit - signal_fit)
-    ErrorSum = np.sum((Residuals)**2)
+    ErrorSum = np.sum((Residuals)**2)  #fitting routine minimizes sum of square of residuals
     
     return(ErrorSum)
 
@@ -247,7 +247,8 @@ for file in os.listdir('.'):
             signal_fit = signal[(bkd_bounds[0] <= wavenum) & (wavenum <= bkd_bounds[3])] # y data cut down to bkg boundaries
             
             wavesforfit =  np.arange(bkd_bounds[0], bkd_bounds[3], step_size) # x data between bounds at step size
-            tck = interp1d(x_fit, signal_fit, bounds_error=False, fill_value=0) # 
+            #tck = interp1d(x_fit, signal_fit, bounds_error=False, fill_value=0) # 
+            tck = interp1d(x_fit, signal_fit, bounds_error=False, fill_value = 'extrapolate') # 
             signal_fit = tck(wavesforfit) # y data between bounds at step size
             x_fit = wavesforfit 
             
@@ -258,8 +259,8 @@ for file in os.listdir('.'):
             bkg_signal= [0]*(len(lower_bkg)+len(higher_bkg)) # wave length of bkg only for y bkg values
             count = 0
             for i in range(0, len(lower_bkg)):
-                bkg_x[count] = x_fit[lower_bkg[i]]
-                bkg_signal[count] = signal_fit[lower_bkg[i]]   
+                bkg_x[i] = x_fit[lower_bkg[i]]
+                bkg_signal[i] = signal_fit[lower_bkg[i]]   
                 count += 1
             for j in range(0, len(higher_bkg)):
                 bkg_x[count] = x_fit[higher_bkg[j]]
@@ -271,7 +272,7 @@ for file in os.listdir('.'):
             baseline = poly.polyval(x_fit, BasePara)
             BaseTSS = ((bkg_signal - np.mean(bkg_signal))**2).sum()
             BaseR2= 1-(BaseRegrStat[0]/BaseTSS) #should work regardless of order of fit
-            BaseSlope = BasePara[0] #only works for first order baseline fits
+            BaseSlope = BasePara[1] #only works for first order baseline fits
             
             ## Option for 2d Order polynomial fit for baseline fit
             # BasePara, residuals, rank, singular_values, rcond  =  np.polyfit(bkg_x,bkg_signal,2, full = True)
@@ -306,10 +307,14 @@ for file in os.listdir('.'):
             
             # Baseline Correction
             signal_fit = signal_fit - baseline #corrects for baseline 
-            Signal_hi = signal[np.where(abs(wavenum - 1910) ==min(abs(wavenum - 1910)))[0][0]]
+            
+            
+            ########## estimating baseline flatness when not using first order baseline fit 
+            
+            #Signal_hi = signal[np.where(abs(wavenum - 1910) ==min(abs(wavenum - 1910)))[0][0]]
             #Signal_2500 = signal[np.where(abs(wavenum - 2500) ==min(abs(wavenum - 2500)))[0][0]]
             #Signal_800 = signal[np.where(abs(wavenum - 800) ==min(abs(wavenum - 800)))[0][0]]
-            Signal_lo = signal[np.where(abs(wavenum - 925) ==min(abs(wavenum - 925)))[0][0]]
+            #Signal_lo = signal[np.where(abs(wavenum - 925) ==min(abs(wavenum - 925)))[0][0]]
             #print 'Baseline Flatness:', Signal_hi/Signal_lo #NOTE if there's noise right here this value will be not so hot
             
             
@@ -317,7 +322,6 @@ for file in os.listdir('.'):
             G_ints = max(signal_fit[(G_bounds[0]-G_bounds[1] <= x_fit) & (x_fit <= G_bounds[0]+G_bounds[1])])
             D_ints = max(signal_fit[(D_bounds[0]-D_bounds[1] <= x_fit) & (x_fit <= D_bounds[0]+D_bounds[1])]) 
             U1_ints = max(signal_fit[(U1_bounds[0]-U1_bounds[1] <= x_fit) & (x_fit <= U1_bounds[0]+U1_bounds[1])])
-            #print('D5 raw intensity ',D5_ints)
             #print 'initial D/G intensity ratio: ',D_ints/G_ints 
             
             
@@ -351,9 +355,8 @@ for file in os.listdir('.'):
            
             ss_res = np.sum((Residuals) ** 2)
             ss_tot = np.sum((signal_fit - np.mean(signal_fit)) ** 2)
-            # can't use R2 on Gaussian or Lorentzian fits, so need to use standard error regression
-            
-
+            R2_fit = 1-ss_res/ss_tot # not meaningful because can't use R2 on Gaussian or Lorentzian fits, so need to use standard error regression
+            SEE_fit = np.sqrt(ss_res/(len(signal_fit)-NumPeaks*3))
             
             # Figure 4 Plot of individual peak fits and total peak fit with experimental
             fig = plt.figure(4)
@@ -379,13 +382,13 @@ for file in os.listdir('.'):
             #
             # ax40 = fig.add_subplot(111)
             ax41 = plt.axes([0.172, .9, .802, .1])
-            ax41.plot(x_fit[4:-2],Residuals[4:-2], '.b')
+            ax41.plot(x_fit,Residuals, '.b')
             #ax41.set_ylabel('Residuals')
             plt.setp(ax41, xticks=[1000,1200,1400,1600,1800], yticks=[-100,0,100])
             ax41.tick_params(direction='in',labelbottom=False,labelleft=False)
             plt.autoscale(enable=True, axis='x', tight=True) 
             
-            plt.ylim(min(Residuals[4:-2])*1.15,max(Residuals[4:-2])*1.15)
+            plt.ylim(min(Residuals)*1.15,max(Residuals)*1.15)
             #plt.ylim(min(Residuals)*1.15,130)
             
             plt.savefig(SaveName + '_fit.jpg')
@@ -511,10 +514,11 @@ for file in os.listdir('.'):
             f.write("{}\t{}\t{}\n".format('Num Peaks Fit', NumPeaks,'0'))
 
             f.write("{}\t{}\t{}\n".format('Baseline Order', base_order, 0) )            
-            f.write("{}\t{}\t{}\n".format('Baseline R2', BaseR2, 0) )
+            f.write("{}\t{}\t{}\n".format('Baseline R2', BaseR2[0], 0) )
             f.write("{}\t{}\t{}\n".format('Baseline Slope', BaseSlope, 0) )
             
-            #f.write("{}\t{}\t{}\n".format('Model Fit S', FitS, 0) )
+            f.write("{}\t{}\t{}\n".format('Peak Fit R2?', R2_fit, 0) )
+            f.write("{}\t{}\t{}\n".format('Peak Fit SEE', SEE_fit, 0) )
             
             f.write("{}\t{}\t{}\n".format('qBWF', qBWF, 0) )
             

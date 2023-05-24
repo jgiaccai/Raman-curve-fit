@@ -54,39 +54,41 @@ for file in os.listdir('.'):
         baseline_order = data[3]
         baseline_r2 = data[4]
         baseline_flatness = data[5]
-        #model_r2 = data[2]
-        q_BWF = data[6]
-        g_pos = data[7]
-        g_width = data[8]
-        g_intensity = data[9]
-        g_int_error = error[9]
         
-        d_pos = data[10]
-        d_width = data[11]
-        d_intensity = data[12]
-        d_ints_error = error[12]
+        pkfit_r2 = data[6]
+        pkfit_see = data[7]
+
         
-        d2_pos = data[13]
-        d2_width = data[14]
-        d2_intensity = data[15]
-        d2_ints_error = error[15]
+        q_BWF = data[8]
+        g_pos = data[9]
+        g_width = data[10]
+        g_intensity = data[11]
+        g_int_error = error[11]
         
-        d3_pos = data[16]
-        d3_width = data[17]
-        d3_intensity = data[18]
-        d3_ints_error = error[18]
+        d_pos = data[12]
+        d_width = data[13]
+        d_intensity = data[14]
+        d_ints_error = error[14]
         
-        d4_pos = data[19]
-        d4_width = data[20]
-        d4_intensity = data[21]
-        d4_ints_error = error[21]
+        d2_pos = data[15]
+        d2_width = data[16]
+        d2_intensity = data[17]
+        d2_ints_error = error[17]
         
-        La_val = data[22]
-        La_error = error[22]
-        ID_IG = data[24]
-        ID_IG_error = error[24]
-        #SNRD = data[11]
-        #noise = data[12]
+        d3_pos = data[18]
+        d3_width = data[19]
+        d3_intensity = data[20]
+        d3_ints_error = error[20]
+        
+        d4_pos = data[21]
+        d4_width = data[22]
+        d4_intensity = data[23]
+        d4_ints_error = error[23]
+        
+        Lalow_val = data[24]
+        Lalow_error = error[24]
+        ID_IG = data[26]
+        ID_IG_error = error[26]
         
         scan_info = np.genfromtxt(fullFilename, dtype = str, delimiter = '\t', usecols = (1), skip_footer = (len(data)+1))
 
@@ -101,7 +103,9 @@ for file in os.listdir('.'):
             
             'Baseline Flatness': baseline_flatness, 
             
-            #'Model R2': model_r2, 
+            'PkFit R2': pkfit_r2, 
+            'PkFit SEE': pkfit_see, 
+            
             'qBWF': q_BWF, 
             'G Peak Position': g_pos, 
             'G Peak Width':g_width, 
@@ -122,7 +126,7 @@ for file in os.listdir('.'):
             'D4 Peak Position': d4_pos,
             'D4 Peak Width': d4_width, 
             'D4 Intensity': d4_intensity,
-            'Conj Length': La_val , 
+            'Conj Length (low)': Lalow_val , 
             #'Conj Length error': La_error , 
             'ID IG Ratio': ID_IG ,
             #'ID IG Ratio error': ID_IG_error ,
