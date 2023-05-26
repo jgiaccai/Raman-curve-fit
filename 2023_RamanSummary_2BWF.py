@@ -101,6 +101,7 @@ for file in os.listdir('.'):
             'Exc Laser': exc_laser,
             'Num Peaks Fit': num_pks,
             
+            'Baseline Order': baseline_order,
             'Baseline Flatness': baseline_flatness, 
             
             'PkFit R2': pkfit_r2, 

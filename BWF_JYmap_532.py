@@ -37,7 +37,7 @@ FitU1On = 0 #unidentified peak but need to include in envelope for 405 etc
 fitVersion = 2.0
 
 base_order = 1 #order of polynomial for bkg fitting, choose 1, 2, or 3
-bkd_bounds = [975, 1125, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
+bkd_bounds = [650, 1025, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
 G_bounds = [1590, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
 D_bounds = [1350, 60, 100, 40]
