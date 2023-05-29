@@ -9,32 +9,34 @@ import numpy as np
 #Data = pd.DataFrame()
 tempData = []
 
-Position=[]
-ScanInfo=[]
-ExcLaser=[]
-NumPeaksFit=[]
-
-BaselineFlatness=[]
-
-qBWF=[]
-GPeakPosition=[]
-GPeakWidth=[]
-GIntensity=[]
-DPeakPosition=[]
-DPeakWidth=[]
-DIntensity=[]
-D2PeakPosition=[]
-D2PeakWidth=[]
-D2Intensity=[]
-D3PeakPosition=[]
-D3PeakWidth=[]
-D3Intensity=[]
-D4PeakPosition=[]
-D4PeakWidth=[]
-D4Intensity=[]
-ConjLength=[]
-IDIGRatio=[]
-Filename=[]
+# =============================================================================
+# Position=[]
+# ScanInfo=[]
+# ExcLaser=[]
+# NumPeaksFit=[]
+# 
+# BaselineFlatness=[]
+# 
+# qBWF=[]
+# GPeakPosition=[]
+# GPeakWidth=[]
+# GIntensity=[]
+# DPeakPosition=[]
+# DPeakWidth=[]
+# DIntensity=[]
+# D2PeakPosition=[]
+# D2PeakWidth=[]
+# D2Intensity=[]
+# D3PeakPosition=[]
+# D3PeakWidth=[]
+# D3Intensity=[]
+# D4PeakPosition=[]
+# D4PeakWidth=[]
+# D4Intensity=[]
+# ConjLength=[]
+# IDIGRatio=[]
+# Filename=[]
+# =============================================================================
 
 
 for file in os.listdir('.'):

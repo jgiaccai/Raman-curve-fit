@@ -1,33 +1,32 @@
-## Uses .txt file from NMNH mapping results for 405 nm
+## Uses .txt file from JY Horiba mapping results for 405 nm
 ## need to add section determining mapping versus individual data text files
-## need to add section writing original name of data file to the summary text file and add into summary prog
 ## 20191002 expanding bounds based on scatter plots
 ## 20201207 getting scan details from metadata
 ## 20230408 altered to allow fitting of any number of Lorentzian peaks, defined lines 29-34
 ## 20230522 altered to fit G peak as a BWF with q of -10
+## 20230524 choose baseline fitting order at top 
 
 import sys
 import numpy as np
-#from pylab import *
 #from scipy.optimize import curve_fit, fmin
 from scipy.optimize import minimize
 from scipy.optimize import least_squares
 import numpy.polynomial.polynomial as poly
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 from scipy import signal
-#from scipy.signal import medfilt
 from scipy.interpolate import interp1d
 import os
 import fnmatch
 import random
 import math
 from time import sleep
-#from pandas import *
 import pandas as pd
 
 # File Parameters
-# Data fitting parameters
-
+# =============================================================================
+# # Data fitting parameters
+# 
 FitGOn = 1 # 1 is yes, 0 is no
 FitDOn = 1
 FitD2On = 0
@@ -35,23 +34,23 @@ FitD3On = 0
 FitD4On = 0
 FitU1On = 0 #unidentified peak but need to include in envelope for 405 etc
 
-fitVersion = 2.0
+fitVersion = 2.0 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
 
-base_order = 1 #order of polynomial for bkg fitting, choose 1, 2, or 3
-bkd_bounds = [650, 1050, 1700, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
+base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
+bkd_bounds = [700, 950, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
 G_bounds = [1590, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
 D_bounds = [1350, 60, 100, 40]
 D2_bounds = [1620, 10, 20, 10]
 D3_bounds = [1500, 10, 45, 40]
 D4_bounds = [1225, 10, 60, 40]
-U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in 405 data
+U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in some 405 data
 IIM = 0.8 #Initial intensity multiplier for G and D peaks 
 qBWF = -10
+# =============================================================================
 
 Ext_Lambda = 000 #nm
-step_size = 1 #nm x-wave spacing for final data
-iterations = 50
+#iterations = 50
 
 TotalNumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On + FitU1On
 NumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On
@@ -89,10 +88,13 @@ def ReadCollDetails(inputFilename):
                 #print(Ext_Lambda)
             if '#ND' in lineList[i]:
                 lp = lineList[i].split('=')[1][1:]
+            if '#Date' in lineList[i]:
+                DateLine = int(lineList[i].split()[1][6:])
+                #print(DateLine)
             i = i+1
     CollDet = 'NMNH '+acqtime+'s '+NoScans+ 'sc ' + Laser + ' lp ' +lp
     txtFile.close()
-    return CollDet,Ext_Lambda
+    return CollDet,Ext_Lambda, DateLine
 
 #physics suggests Raman of solid should be Gaussian--why not here? 
 #(gases Lorentzian, liquids Gaussian-Laurentzian or Voigt)
@@ -142,6 +144,8 @@ def EnterData():
 
     ModelFit = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit    
     
+    # # figure with initial fit of various peaks
+    
     # fig = plt.figure(5)
     # ax50 = fig.add_subplot(111)
     # ax50.plot(x_fit, signal_fit,'.k', label = 'Experimental')
@@ -152,15 +156,15 @@ def EnterData():
     # ax50.plot(x_fit, D4fit,'-m', label = 'D4 Peak Fit')
     # ax50.plot(x_fit, U1fit, '.g', label = 'U1 Peak Fit')
     # ax50.plot(x_fit, ModelFit,'-r', label = 'Summed Peak Fit')
-    # ax50.set_xlabel(r'Raman Shift / cm$^-$$^1$', fontsize=18)
+    # ax50.set_xlabel(r'Raman Shift / cm$^-$$^1$')
     # plt.autoscale(enable=True, axis='x', tight=True)
     # plt.autoscale(enable=True, axis='y', tight=True)
-    # ax50.set_ylabel('Raman Intensity', fontsize=18)
-    # ax50.set_ylim(0, max(signal_fit)*1.2)
-    # plt.text(1075, 14100, 'ink', fontsize=20)
-    # plt.tick_params(axis='both', which='major', labelsize=18)
-    # plt.tight_layout()
-    # plt.savefig(SaveName + 'initialfit.jpg')
+    # ax50.set_ylabel('Raman Intensity')
+    # ax50.set_ylim(min(signal_fit), max(signal_fit)*1.2)
+    # #plt.text(1075, 14100, 'ink', fontsize=20)
+    # plt.tick_params(axis='both', which='major')
+    # #plt.tight_layout()
+    # plt.savefig(SaveName + '_initialfit.jpg')
     # #plt.show()
     # plt.close()
     
@@ -177,7 +181,7 @@ def EnterData():
     bounds[8] = (D2_bounds[2]-D2_bounds[3],D2_bounds[2]+D2_bounds[3])
     bounds[9] = (D3_bounds[2]-D3_bounds[3],D3_bounds[2]+D3_bounds[3])
     bounds[10] = (D4_bounds[2]-D4_bounds[3],D4_bounds[2]+D4_bounds[3])
-    bounds[11] = (U1_bounds[0]-U1_bounds[1],U1_bounds[0]+U1_bounds[1])
+    bounds[11] = (U1_bounds[2]-U1_bounds[3],U1_bounds[2]+U1_bounds[3])
 
     
     bounds[12] = (0.5*G_ints,1.2*G_ints)
@@ -210,7 +214,7 @@ def Evaluate(EvalSimp):
     
     EvalFit = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit
     
-    Residuals = (EvalFit - signal_fit)
+    Residuals = (signal_fit - EvalFit)
     ErrorSum = np.sum((Residuals)**2)  #fitting routine minimizes sum of square of residuals
     
     return(ErrorSum)
@@ -224,11 +228,14 @@ for file in os.listdir('.'):
         print(file)
         filename = file[:-4]
         
-        (CollDet,Ext_Lambda) = ReadCollDetails(file)
+        (CollDet,Ext_Lambda,FileDate) = ReadCollDetails(file)
         Ext_Lambda = int(Ext_Lambda)
         print(Ext_Lambda)
         
-        all_data = pd.read_csv(Loadfile, skiprows = (46), sep = None, header = None, engine='python', encoding='latin-1')
+        if FileDate < 2023:
+            all_data = pd.read_csv(Loadfile, skiprows = (38), sep = None, header = None, engine='python', encoding='latin-1')
+        else:
+            all_data = pd.read_csv(Loadfile, skiprows = (46), sep = None, header = None, engine='python', encoding='latin-1')
         locations = all_data[0]
         all_data = all_data.transpose()
         
@@ -265,21 +272,39 @@ for file in os.listdir('.'):
             if base_order ==1:
                 BaseSlope = BasePara[1] #only works for first order baseline fits
             else:
-                # calculate rise/run for fitted baseline immediately before and after the peak region.
                 BaseSlope = PseudoSlope
             
-              
+            BaseResiduals = bkg_signal-baseline
+            
+            # figure with baseline fit and residuals
+            
             fig = plt.figure(1)
-            ax = fig.add_subplot(111)
+            gs1 = fig.add_gridspec(nrows=2, ncols=1,
+                      hspace=0.1, wspace=0, height_ratios=[1, 5])
+            ax = fig.add_subplot(gs1[1])
             ax.plot(wavenum , signal,'-k')
             ax.plot(x_fit, baseline, '-r')
             ax.plot(bkg_x , bkg_signal,'.b')
-            ax.set_xlabel('Raman Shift (cm-1)')
+            ax.set_xlabel('Raman Shift / cm$^{-1}$')
             ax.set_ylabel('Raman Intensity')
             ax.set_ylim(0, 1.5*max(signal_fit))
+            plt.autoscale(enable=True, axis='x', tight=True)
+            plt.autoscale(enable=True, axis='y', tight=True)
+            
+            ax11 = fig.add_subplot(gs1[0])
+            ax11.plot(x_fit,BaseResiduals, '.b')
+            ax11.axhline(0, linestyle='--', color = 'gray', linewidth = 1)
+            ax11.set_ylabel('Residuals')
+            plt.setp(ax11, xticks=[1000,1200,1400,1600,1800,2000])
+            ax11.tick_params(direction='in',labelbottom=True,labelleft=True)
+            plt.autoscale(enable=True, axis='x', tight=True) 
+            plt.ylim(min(BaseResiduals)*1.15,max(BaseResiduals)*1.15)
+            
             #plt.show()
+            gs1.update(left=0.13,right=0.96,top=0.95,bottom=0.12) #as percentages of total figure with 1,1 in upper right
+            fig.set_size_inches(6, 5) #width, height
             fname = str(SaveName) + '_base.jpg'
-            plt.savefig(fname)
+            plt.savefig(fname, dpi=300)
             plt.close()
             
             # Baseline Correction
@@ -327,38 +352,43 @@ for file in os.listdir('.'):
             
             # Figure 4 Plot of individual peak fits and total peak fit with experimental
             fig = plt.figure(4)
-            ax40 = fig.add_subplot(111)
+            gs4 = fig.add_gridspec(nrows=2, ncols=1,
+                      hspace=0, wspace=0, height_ratios=[1, 5])
+            ax40 = fig.add_subplot(gs4[1])
             ax40.plot(x_fit, signal_fit,'.k', label = 'Experimental')
             ax40.plot(x_fit, Gfit,'-g', label = 'G Peak Fit')
             ax40.plot(x_fit, Dfit,'-b', label = 'D Peak Fit')
-            ax40.plot(x_fit , D2fit,'-y', label = 'D2 Peak Fit')
-            ax40.plot(x_fit, D3fit,'-c', label = 'D3 Peak Fit')
-            ax40.plot(x_fit , D4fit,'-m', label = 'D4 Peak Fit')
-            ax40.plot(x_fit, U1fit, '-y', label = 'U1 peak fit')
+            if FitD2On == 1:
+                ax40.plot(x_fit , D2fit,'-y', label = 'D2 Peak Fit')
+            if FitD3On == 1:
+                ax40.plot(x_fit, D3fit,'-c', label = 'D3 Peak Fit')
+            if FitD4On == 1:
+                ax40.plot(x_fit , D4fit,'-m', label = 'D4 Peak Fit')
+            if FitU1On == 1:
+                ax40.plot(x_fit, U1fit, '-y', label = 'U1 peak fit')
             ax40.plot(x_fit, ModelFit,'-r', label = 'Summed Peak Fit')
-            ax40.set_xlabel(r'Raman Shift / cm$^{-1}$', fontsize=18)
+            ax40.set_xlabel(r'Raman Shift / cm$^{-1}$', fontsize=16)
             plt.autoscale(enable=True, axis='x', tight=True)
-            plt.autoscale(enable=True, axis='y', tight=True)
-            ax40.set_ylabel('Raman Intensity', fontsize=18)
-            ax40.set_ylim(0, max(signal_fit)*1.2)
+            plt.autoscale(enable=True, axis='y')
+            plt.setp(ax40, xticks=[1000,1200,1400,1600,1800,2000])
+            ax40.set_ylabel('Raman Intensity', fontsize=16)
             #plt.text(1075, 14100, 'ink', fontsize=20)
-            plt.tick_params(axis='both', which='major', labelsize=18)
-            plt.tight_layout()
-            #ax40.legend(bbox_to_anchor=(0.00, 0.70, .3, .152), loc=3,
-            #        ncol=1, mode='expand', frameon=True, borderaxespad=0.)
-            #
-            # ax40 = fig.add_subplot(111)
-            ax41 = plt.axes([0.1705, .9, .803, .1])
+            plt.tick_params(axis='both', which='major', labelsize=14)
+            
+            ax41 = fig.add_subplot(gs4[0])
             ax41.plot(x_fit,Residuals, '.b')
-            #ax41.set_ylabel('Residuals')
-            plt.setp(ax41, xticks=[1000,1200,1400,1600,1800], yticks=[-100,0,100])
-            ax41.tick_params(direction='in',labelbottom=False,labelleft=False)
+            ax41.axhline(0, linestyle='--', color = 'gray', linewidth = 1)
+            ax41.set_ylabel('Residuals')
+            plt.setp(ax41, xticks=[800,1000,1200,1400,1600,1800])
+            ax41.tick_params(direction='in',labelbottom=False,labelleft=True)
             plt.autoscale(enable=True, axis='x', tight=True) 
             
             plt.ylim(min(Residuals)*1.15,max(Residuals)*1.15)
             #plt.ylim(min(Residuals)*1.15,130)
             
-            plt.savefig(SaveName + '_fit.jpg')
+            gs4.update(left=0.13,right=0.94,top=0.95,bottom=0.15) #as percentages of total figure with 1,1 in upper right
+            fig.set_size_inches(6, 5) #width, height
+            plt.savefig(SaveName + '_fit.jpg', dpi=300)
             #plt.show()
             plt.close()
                     
