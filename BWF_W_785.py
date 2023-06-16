@@ -12,15 +12,15 @@ from scipy.optimize import minimize
 from scipy.optimize import least_squares
 import numpy.polynomial.polynomial as poly
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
+#from matplotlib.gridspec import GridSpec
 from scipy import signal
-from scipy.interpolate import interp1d
+#from scipy.interpolate import interp1d
 import os
 import fnmatch
-import random
-import math
-from time import sleep
-import pandas as pd
+#import random
+#import math
+#from time import sleep
+#import pandas as pd
 import linecache
 
 # File Parameters
@@ -36,7 +36,7 @@ FitU1On = 0 #unidentified peak but need to include in envelope for 405 etc
 
 fitVersion = 2.0 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
 
-base_order = 1 #order of polynomial for bkg fitting, choose 1, 2, or 3
+base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [520, 950, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
 G_bounds = [1590, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
@@ -52,7 +52,7 @@ qBWF = -10
 #at some point files got switched so not saving the wavenumber column...grr.
 #adding a file that has the wavenumbers in a column
 
-wavefile = "/Users/jennifergiaccai/OneDrive - Smithsonian Institution/ChineseInkProject/RamanInk/Kaishien gaden data and Kobaien/2021-05-27/origink_R785_12lp_5000ms_10avg-20210527-173533-508239-WP-00665.csv"
+wavefile = "/Users/jennifergiaccai/OneDrive - Smithsonian Institution/PROJECTS/ChineseInkProject/WasatchWavenumRef-20210624-160600-788505-WP-00665.csv"
 
 Ext_Lambda = 000 #nm
 #iterations = 50
@@ -224,11 +224,11 @@ for file in os.listdir('.'):
         wavenum_yes_no = str(linecache.getline(Loadfile,31).split(',')[0])
 
         if wavenum_yes_no == 'Wavenumber':
-            wavenum = np.loadtxt(Loadfile, usecols = 0, skiprows = (33),encoding='latin1', delimiter = ',')
-            signal = np.loadtxt(Loadfile, usecols = 1, skiprows = (33),encoding='latin1', delimiter = ',')
-        elif wavenum_yes_no == 'Processed':
-            wavenum = np.loadtxt(wavefile, usecols = 0, skiprows = (33),encoding='latin1', delimiter = ',')
-            signal = np.loadtxt(Loadfile, usecols = 0, skiprows = (33),encoding='latin1', delimiter = ',')
+            wavenum = np.loadtxt(Loadfile, usecols = 0, skiprows = (32),encoding='latin1', delimiter = ',')
+            signal = np.loadtxt(Loadfile, usecols = 1, skiprows = (32),encoding='latin1', delimiter = ',')
+        elif wavenum_yes_no == 'Processed\n':
+            wavenum = np.loadtxt(wavefile, usecols = 0, skiprows = (32),encoding='latin1', delimiter = ',')
+            signal = np.loadtxt(Loadfile, usecols = 0, skiprows = (32),encoding='latin1', delimiter = ',')
         else:
             print('cannot find data')
             continue
