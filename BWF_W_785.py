@@ -40,7 +40,7 @@ base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [520, 950, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
 G_bounds = [1590, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
-D_bounds = [1350, 60, 100, 40]
+D_bounds = [1350, 60, 100, 60]
 D2_bounds = [1620, 10, 20, 10]
 D3_bounds = [1500, 10, 45, 40]
 D4_bounds = [1225, 10, 60, 40]
