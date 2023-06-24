@@ -7,14 +7,13 @@
 
 import sys
 import numpy as np
-#from scipy.optimize import curve_fit, fmin
+from scipy.optimize import curve_fit
 from scipy.optimize import minimize
 from scipy.optimize import least_squares
 import numpy.polynomial.polynomial as poly
 import matplotlib.pyplot as plt
 #from matplotlib.gridspec import GridSpec
 from scipy import signal
-#from scipy.interpolate import interp1d
 import os
 import fnmatch
 #import random
@@ -183,9 +182,9 @@ def EnterData():
     
     #print('Bounds are ',bounds)
     
-def Evaluate(EvalSimp):   
-    global NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds
-    global x_fit, signal_fit, Residuals
+def FitFunc(x_fit, *EvalSimp):   
+    #global NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds
+    #global signal_fit, Residuals
     
     '''
     Need to 
@@ -202,12 +201,12 @@ def Evaluate(EvalSimp):
     U1fit = FitU1On*lorentz(EvalSimp[5], EvalSimp[11], EvalSimp[17])
 
     
-    EvalFit = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit
+    FitY = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit
     
-    Residuals = (signal_fit - EvalFit)
-    ErrorSum = np.sum((Residuals)**2)  #fitting routine minimizes sum of square of residuals
+    #Residuals = (signal_fit - EvalFit)
+    #ErrorSum = np.sum((Residuals)**2)  #fitting routine minimizes sum of square of residuals
     
-    return(ErrorSum)
+    return(FitY)
 
 
 
@@ -307,7 +306,7 @@ for file in os.listdir('.'):
         
         EnterData()
         #print 'FitParam ', FitParam
-        minres = minimize(Evaluate,FitParam,method='SLSQP',tol=1e-8,bounds=bounds,options={'maxiter':1e5}) 
+        minres = curve_fit(FitFunc,x_fit,signal_fit,p0=FitParam,method = 'trf', full_output=True) 
         if minres.success == 1:
             fit_results=minres.x
             #print(fit_results)
