@@ -21,6 +21,7 @@ import fnmatch
 #from time import sleep
 #import pandas as pd
 import linecache
+import uncertainties
 
 # File Parameters
 # =============================================================================
@@ -61,15 +62,58 @@ NumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On
 NumPksApp = str(NumPeaks)+'BWF'
 NumParams    = 3*6     #{Number of parameters to fit}
 FitParam =np.zeros(NumParams) 
-bounds = np.zeros((NumParams,2))
+lobounds = np.zeros(18)
+hibounds = np.zeros(18)
 
-lowG = G_bounds[0] - (G_bounds[1]/2)
-highG = G_bounds[0] + (G_bounds[1]/2)
-lowD = D_bounds[0] - (D_bounds[1]/2)
-highD = D_bounds[0] + (D_bounds[1]/2)
+# lowG = G_bounds[0] - (G_bounds[1]/2)
+# highG = G_bounds[0] + (G_bounds[1]/2)
+# lowD = D_bounds[0] - (D_bounds[1]/2)
+# highD = D_bounds[0] + (D_bounds[1]/2)
     
-lowD = 1100
+# lowD = 1100
 CollDet = 'NMNH unk det'  #If need to restart, replace with collection details
+
+# only need to set peak location and width bounds once, at the beginning of the program  
+# bounds for optimize.curve_fit: an array of lows, an array of highs
+
+lobounds[0] = (G_bounds[0]-G_bounds[1])
+lobounds[1] = (D_bounds[0]-D_bounds[1])
+lobounds[2] = (D2_bounds[0]-D2_bounds[1])
+lobounds[3] = (D3_bounds[0]-D3_bounds[1])
+lobounds[4] = (D4_bounds[0]-D4_bounds[1])
+lobounds[5] = (U1_bounds[0]-U1_bounds[1])
+
+lobounds[6] = (G_bounds[2]-G_bounds[3])
+lobounds[7] = (D_bounds[2]-D_bounds[3])
+lobounds[8] = (D2_bounds[2]-D2_bounds[3])
+lobounds[9] = (D3_bounds[2]-D3_bounds[3])
+lobounds[10] = (D4_bounds[2]-D4_bounds[3])
+lobounds[11] = (U1_bounds[2]-U1_bounds[3])
+
+hibounds[0] = (G_bounds[0]+G_bounds[1])
+hibounds[1] = (D_bounds[0]+D_bounds[1])
+hibounds[2] = (D2_bounds[0]+D2_bounds[1])
+hibounds[3] = (D3_bounds[0]+D3_bounds[1])
+hibounds[4] = (D4_bounds[0]+D4_bounds[1])
+hibounds[5] = (U1_bounds[0]+U1_bounds[1])
+
+hibounds[6] = (G_bounds[2]+G_bounds[3])
+hibounds[7] = (D_bounds[2]+D_bounds[3])
+hibounds[8] = (D2_bounds[2]+D2_bounds[3])
+hibounds[9] = (D3_bounds[2]+D3_bounds[3])
+hibounds[10] = (D4_bounds[2]+D4_bounds[3])
+hibounds[11] = (U1_bounds[2]+U1_bounds[3])
+
+hibounds[12] = 500 #made up intensities just to fill the array out will customize per spectrum
+hibounds[13] = 500
+hibounds[14] = 500
+hibounds[15] = 100
+hibounds[16] = 100
+hibounds[17] = 500
+
+bounds = lobounds,hibounds
+  
+#print('Bounds are ',bounds)
 
 def ReadCollDetails(inputFilename):
     global CollDet, Ext_Lambda
@@ -100,7 +144,8 @@ def BWF(xc,w,I):
 
 def EnterData():
     
-    global FitParam, G_ints, D_ints, U1_ints, NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds, bounds
+    global FitParam, G_ints, D_ints, U1_ints, NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds
+    global bounds, lobounds, hibounds
 
     FitParam[0] = G_bounds[0] # G peak position
     FitParam[1]  = D_bounds[0] # D peak position
@@ -157,30 +202,20 @@ def EnterData():
     # #plt.show()
     # plt.close()
     
-    bounds[0] = (G_bounds[0]-G_bounds[1],G_bounds[0]+G_bounds[1])
-    bounds[1] = (D_bounds[0]-D_bounds[1],D_bounds[0]+D_bounds[1])
-    bounds[2] = (D2_bounds[0]-D2_bounds[1],D2_bounds[0]+D2_bounds[1])
-    bounds[3] = (D3_bounds[0]-D3_bounds[1],D3_bounds[0]+D3_bounds[1])
-    bounds[4] = (D4_bounds[0]-D4_bounds[1],D4_bounds[0]+D4_bounds[1])
-    bounds[5] = (U1_bounds[0]-U1_bounds[1],U1_bounds[0]+U1_bounds[1])
+    # need to add intensity bounds for each spectrum      
+    # bounds for optimize.curve_fit: an array? of lows, an array? of highs, just need to update highs
 
-    
-    bounds[6] = (G_bounds[2]-G_bounds[3],G_bounds[2]+G_bounds[3])
-    bounds[7] = (D_bounds[2]-D_bounds[3],D_bounds[2]+D_bounds[3])
-    bounds[8] = (D2_bounds[2]-D2_bounds[3],D2_bounds[2]+D2_bounds[3])
-    bounds[9] = (D3_bounds[2]-D3_bounds[3],D3_bounds[2]+D3_bounds[3])
-    bounds[10] = (D4_bounds[2]-D4_bounds[3],D4_bounds[2]+D4_bounds[3])
-    bounds[11] = (U1_bounds[2]-U1_bounds[3],U1_bounds[2]+U1_bounds[3])
+    lobounds[12] = 0.5*G_ints  # we might want to let G go to zero depending on D2
+    lobounds[13] = 0.5*D_ints
+    hibounds[12] = 1.2*G_ints
+    hibounds[13] = 1.2*D_ints
 
+    hibounds[14] = 0.5*G_ints
+    hibounds[15] = 0.5*D_ints
+    hibounds[16] = 0.5*D_ints
+    hibounds[17] = 0.5*G_ints
     
-    bounds[12] = (0.5*G_ints,1.2*G_ints)
-    bounds[13] = (0.5*D_ints,1.2*D_ints)
-    bounds[14] = (1,0.5*G_ints)
-    bounds[15] = (1,0.5*D_ints)
-    bounds[16] = (1,0.5*D_ints)
-    bounds[17] = (1,0.5*G_ints)
-    
-    #print('Bounds are ',bounds)
+    bounds = (lobounds,hibounds)
     
 def FitFunc(x_fit, *EvalSimp):   
     #global NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds
@@ -306,13 +341,15 @@ for file in os.listdir('.'):
         
         EnterData()
         #print 'FitParam ', FitParam
-        minres = curve_fit(FitFunc,x_fit,signal_fit,p0=FitParam,method = 'trf', full_output=True) 
-        if minres.success == 1:
-            fit_results=minres.x
+        minres = curve_fit(FitFunc,x_fit,signal_fit,p0=FitParam,method = 'trf', bounds=bounds, full_output=True) 
+        if minres[4] > 1 and minres[4] < 4:
+            fit_results=minres[0]
+            covMatrix = minres[1] 
+            dFit = np.sqrt(np.diag(covMatrix))
             #print(fit_results)
-            iterations = minres.nit
+            #iterations = minres.nfev # I think? not sure 
         else:
-            print(minres.message)
+            print(minres[3])
             fit_results = np.zeros(NumParams)
             continue
         Gfit = FitGOn*BWF(fit_results[0],fit_results[6],fit_results[12])
@@ -332,6 +369,7 @@ for file in os.listdir('.'):
         U1_ints = fit_results[17]
         TotalIntensity = G_ints + D_ints + D2_ints + D3_ints + D4_ints
        
+        Residuals = (signal_fit - ModelFit)
         ss_res = np.sum((Residuals) ** 2)
         ss_tot = np.sum((signal_fit - np.mean(signal_fit)) ** 2)
         R2_fit = 1-ss_res/ss_tot # not meaningful because can't use R2 on Gaussian or Lorentzian fits, so need to use standard error regression
@@ -359,7 +397,6 @@ for file in os.listdir('.'):
         plt.autoscale(enable=True, axis='y')
         plt.setp(ax40, xticks=[1000,1200,1400,1600,1800,2000])
         ax40.set_ylabel('Raman Intensity', fontsize=16)
-        #plt.text(1075, 14100, 'ink', fontsize=20)
         plt.tick_params(axis='both', which='major', labelsize=14)
         
         ax41 = fig.add_subplot(gs4[0])
@@ -371,41 +408,36 @@ for file in os.listdir('.'):
         plt.autoscale(enable=True, axis='x', tight=True) 
         
         plt.ylim(min(Residuals)*1.15,max(Residuals)*1.15)
-        #plt.ylim(min(Residuals)*1.15,130)
         
         gs4.update(left=0.13,right=0.94,top=0.95,bottom=0.15) #as percentages of total figure with 1,1 in upper right
         fig.set_size_inches(6, 5) #width, height
         plt.savefig(SaveName + '_fit.jpg', dpi=300)
-        #plt.show()
         plt.close()
-                
-        #  =============================================================================
-        #             # Uncertainty analysis
-        #             G_error = [0]*iterations
-        #             D_error = [0]*iterations
-        #             for i in range(0, iterations):
-        #                 model_error = ModelFit + fit_error*np.random.randn(1)/4*ModelFit
-        #                 G_error[i] =model_error[np.where(x_fit == np.around(fit_results[0],0) )[0][0]]
-        #                 D_error[i] = model_error[np.where(x_fit == np.around(fit_results[1],0) )[0][0]]
-        #             
-        #             G_ints_error =  np.std(G_error) 
-        #             D_ints_error =  np.std(D_error)
-        # =============================================================================
-            
-        #print 'G Band Peak Position: ', fit_results[0]
-        #print 'G Band Peak Width: ', fit_results[2]
-        #print 'G Band Peak Intensity: ', '%.3f' %G_ints#, '+/- ',  '%.3f' %G_ints_error
-        #print 'D Band Peak Position: ', fit_results[1]
-        #print 'D Band Peak Width: ', fit_results[3]
-        #print 'D Band Peak Intensity: ', '%.3f' %D_ints  # , '+/- ',  '%.3f' %D_ints_error 
         
         # ID/IG Ratio
         Exp_ratio = D_ints/G_ints
-        #Exp_ratio_err = Exp_ratio*((G_ints_error/G_ints)**2 + (D_ints_error/D_ints)**2)**0.5
         
-        #print 'ID/IG Ratio: ', '%.3f' %Exp_ratio #,'+/- ',  '%.3f' % Exp_ratio_err 
-        #print 'q = ',qBWF
-        #print 'Sum Sq Residuals = ',np.sum(Residuals**2)
+        # Calculation of uncertainties
+        
+        Exp_ratio_stdev = Exp_ratio*((dFit[12]/G_ints)**2 + (dFit[13]/D_ints)**2 - 
+                                   (2*(covMatrix[13,12])/G_ints/D_ints))**0.5
+        TotIntstdev = (dFit[12]**2 + dFit[13]**2 + dFit[14]**2 + dFit[15]**2 + dFit[16]**2 + 
+                      2*((covMatrix[13,12]) + (covMatrix[13,14]) + 
+                          (covMatrix[13,15]) + (covMatrix[13,16]) + 
+                          (covMatrix[14,12]) + (covMatrix[14,15]) +
+                          (covMatrix[14,16]) + (covMatrix[15,12]) + 
+                          (covMatrix[15,16]) + (covMatrix[16,12])))**0.5
+        #IDITstdev =
+        #ID2ITstdev = 
+        #ID3ITstdev = 
+        #ID4ITstdev = 
+        #IGITstdev = 
+        if FitD2On == 1:
+            ID2IGstdev = (D2_ints/G_ints)*((dFit[14]/D2_ints)**2 + (dFit[12]/G_ints)**2 - (2*(covMatrix[14,12])**0.5/G_ints/D2_ints))**0.5
+        if FitD3On == 1:
+            ID3IDstdev = (D3_ints/D_ints)*((dFit[15]/D3_ints)**2 + (dFit[13]/D_ints)**2 - (2*(covMatrix[13,15])**0.5/D3_ints/D_ints))**0.5
+        if FitD4On == 1:
+            ID4IDstdev = (D4_ints/D_ints)*((dFit[16]/D4_ints)**2 + (dFit[13]/D_ints)**2 - (2*(covMatrix[13,16])**0.5/D4_ints/D_ints))**0.5
         
         ra = 3.1 # +/- 0.03nm
         rs = 1.0 #
@@ -436,13 +468,13 @@ for file in os.listdir('.'):
         low_La = La_low[np.where(abs(Model_Ratio_low - Exp_ratio) == min(abs(Model_Ratio_low - Exp_ratio)))[0][0]]
         low_La_min_Ca = La_low[np.where(abs(Min_Ratio_low - Exp_ratio) == min(abs(Min_Ratio_low - Exp_ratio)))[0][0]]
         low_La_max_Ca = La_low[np.where(abs(Max_Ratio_low - Exp_ratio) == min(abs(Max_Ratio_low - Exp_ratio)))[0][0]]
-        low_La_error_Ca = abs(low_La_min_Ca - low_La_max_Ca)
+        low_La_stdev_Ca = abs(low_La_min_Ca - low_La_max_Ca)
         
-        #low_La_min_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_err) ) == min(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_err))))[0][0]]
-        #low_La_max_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_err)) == min(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_err))))[0][0]]
-        #low_La_error_ratio = abs(low_La_min_ratio - low_La_max_ratio)
-        #low_La_error = low_La*((low_La_error_ratio/low_La)**2 + (low_La_error_Ca/low_La)**2)**0.5
-        #print 'Conjugation Length (low): ', '%.3f' %low_La,  '+/- ', '%.3f' %low_La_error, 'nm'
+        #low_La_min_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_stdev) ) == min(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_stdev))))[0][0]]
+        #low_La_max_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_stdev)) == min(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_stdev))))[0][0]]
+        #low_La_stdev_ratio = abs(low_La_min_ratio - low_La_max_ratio)
+        #low_La_stdev = low_La*((low_La_stdev_ratio/low_La)**2 + (low_La_stdev_Ca/low_La)**2)**0.5
+        #print 'Conjugation Length (low): ', '%.3f' %low_La,  '+/- ', '%.3f' %low_La_stdev, 'nm'
         
         high = np.where(La_Range >=3)[0]
         La_high = [0]*len(high)
@@ -457,13 +489,13 @@ for file in os.listdir('.'):
         high_La = La_high[np.where(abs(Model_Ratio_high - Exp_ratio) == min(abs(Model_Ratio_high - Exp_ratio)))[0][0]]
         high_La_min_Ca = La_high[np.where(abs(Min_Ratio_high - Exp_ratio) == min(abs(Min_Ratio_high - Exp_ratio)))[0][0]]
         high_La_max_Ca = La_high[np.where(abs(Max_Ratio_high - Exp_ratio) == min(abs(Max_Ratio_high - Exp_ratio)))[0][0]]
-        high_La_error_Ca = abs(high_La_min_Ca - high_La_max_Ca)
+        high_La_stdev_Ca = abs(high_La_min_Ca - high_La_max_Ca)
         
-        #high_La_min_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_err) ) == min(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_err))))[0][0]]
-        #high_La_max_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_err)) == min(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_err))))[0][0]]
-        #high_La_error_ratio = abs(high_La_min_ratio - high_La_max_ratio)
-        #high_La_error = high_La*((high_La_error_ratio/high_La)**2 + (high_La_error_Ca/high_La)**2)**0.5
-        #print 'Conjugation Length (high): ', '%.3f' %high_La,  '+/- ', '%.3f' %high_La_error, 'nm'
+        #high_La_min_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_stdev) ) == min(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_stdev))))[0][0]]
+        #high_La_max_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_stdev)) == min(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_stdev))))[0][0]]
+        #high_La_stdev_ratio = abs(high_La_min_ratio - high_La_max_ratio)
+        #high_La_stdev = high_La*((high_La_stdev_ratio/high_La)**2 + (high_La_stdev_Ca/high_La)**2)**0.5
+        #print 'Conjugation Length (high): ', '%.3f' %high_La,  '+/- ', '%.3f' %high_La_stdev, 'nm'
         
         Ratio = [Exp_ratio, Exp_ratio]
         La = [low_La, high_La]
@@ -474,8 +506,8 @@ for file in os.listdir('.'):
         ax.fill_between(La_Range, Min_Ratio, Max_Ratio,  facecolor='gray', alpha = 0.25)
         #ax.plot(La , Ratio,'or')
         ax.loglog(La , Ratio,'or')
-        high_label = '%.3f' %high_La #+ '+/- ' + '%.3f' %high_La_error + 'nm'
-        low_label = '%.3f' %low_La #+ '+/- ' + '%.3f' %low_La_error + 'nm'
+        high_label = '%.3f' %high_La #+ '+/- ' + '%.3f' %high_La_stdev + 'nm'
+        low_label = '%.3f' %low_La #+ '+/- ' + '%.3f' %low_La_stdev + 'nm'
         ax.text(high_La, Exp_ratio, high_label, va="top", ha = "center", size = 10)
         ax.text(low_La, Exp_ratio, low_label, va="top", ha = "center", size = 10)
         ax.set_xlabel('La')
@@ -506,38 +538,38 @@ for file in os.listdir('.'):
         
         f.write("{}\t{}\t{}\n".format('qBWF', qBWF, 0) )
         
-        f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], 0) )
-        f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], 0 ))
-        f.write("{}\t{}\t{}\n".format('G Band Peak Intensity', G_ints,0))
+        f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], dFit[0]) )
+        f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], dFit[6] ))
+        f.write("{}\t{}\t{}\n".format('G Band Peak Intensity', G_ints,dFit[12]))
         
-        f.write("{}\t{}\t{}\n".format('D Band Peak Position',fit_results[1],0))
-        f.write("{}\t{}\t{}\n".format('D Band Peak Width',fit_results[7],0))
-        f.write("{}\t{}\t{}\n".format('D Band Peak Intensity', D_ints,0))
+        f.write("{}\t{}\t{}\n".format('D Band Peak Position',fit_results[1],dFit[1]))
+        f.write("{}\t{}\t{}\n".format('D Band Peak Width',fit_results[7],dFit[7]))
+        f.write("{}\t{}\t{}\n".format('D Band Peak Intensity', D_ints,dFit[13]))
         
-        f.write("{}\t{}\t{}\n".format('D2 Band Peak Position',fit_results[2],0))
-        f.write("{}\t{}\t{}\n".format('D2 Band Peak Width',fit_results[8],0))
-        f.write("{}\t{}\t{}\n".format('D2 Band Peak Intensity', D2_ints,0))
+        f.write("{}\t{}\t{}\n".format('D2 Band Peak Position',fit_results[2],dFit[2]))
+        f.write("{}\t{}\t{}\n".format('D2 Band Peak Width',fit_results[8],dFit[8]))
+        f.write("{}\t{}\t{}\n".format('D2 Band Peak Intensity', D2_ints,dFit[14]))
         
-        f.write("{}\t{}\t{}\n".format('D3 Band Peak Position',fit_results[3],0))
-        f.write("{}\t{}\t{}\n".format('D3 Band Peak Width',fit_results[9],0))
-        f.write("{}\t{}\t{}\n".format('D3 Band Peak Intensity', D3_ints,0))
+        f.write("{}\t{}\t{}\n".format('D3 Band Peak Position',fit_results[3],dFit[3]))
+        f.write("{}\t{}\t{}\n".format('D3 Band Peak Width',fit_results[9],dFit[9]))
+        f.write("{}\t{}\t{}\n".format('D3 Band Peak Intensity', D3_ints,dFit[15]))
         
-        f.write("{}\t{}\t{}\n".format('D4 Band Peak Position',fit_results[4],0))
-        f.write("{}\t{}\t{}\n".format('D4 Band Peak Width',fit_results[10],0))
-        f.write("{}\t{}\t{}\n".format('D4 Band Peak Intensity', D4_ints,0))
+        f.write("{}\t{}\t{}\n".format('D4 Band Peak Position',fit_results[4],dFit[4]))
+        f.write("{}\t{}\t{}\n".format('D4 Band Peak Width',fit_results[10],dFit[10]))
+        f.write("{}\t{}\t{}\n".format('D4 Band Peak Intensity', D4_ints,dFit[16]))
         
         f.write("{}\t{}\t{}\n".format('Conjugation Length (low)',low_La,0))
         f.write("{}\t{}\t{}\n".format('Conjugation Length (high)',high_La,0))
-        f.write("{}\t{}\t{}\n".format('ID/IG',Exp_ratio,0))
+        f.write("{}\t{}\t{}\n".format('ID/IG',Exp_ratio,Exp_ratio_stdev))
 
         f.write("{}\t{}\t{}\n".format('ID/total ratio', D_ints/TotalIntensity,0))
         f.write("{}\t{}\t{}\n".format('ID2/total ratio', D2_ints/TotalIntensity,0))
         f.write("{}\t{}\t{}\n".format('ID3/total ratio', D3_ints/TotalIntensity,0))
         f.write("{}\t{}\t{}\n".format('ID4/total ratio', D4_ints/TotalIntensity,0))
         f.write("{}\t{}\t{}\n".format('IG/total ratio',G_ints/TotalIntensity,0))
-        f.write("{}\t{}\t{}\n".format('ID2/IG ratio', D2_ints/G_ints,0))
-        f.write("{}\t{}\t{}\n".format('ID3/ID ratio', D3_ints/D_ints,0))
-        f.write("{}\t{}\t{}\n".format('ID4/ID ratio', D4_ints/D_ints,0))
+        f.write("{}\t{}\t{}\n".format('ID2/IG ratio', D2_ints/G_ints,ID2IGstdev))
+        f.write("{}\t{}\t{}\n".format('ID3/ID ratio', D3_ints/D_ints,ID3IDstdev))
+        f.write("{}\t{}\t{}\n".format('ID4/ID ratio', D4_ints/D_ints,ID4IDstdev))
         f.write("{}\t{}\t{}\n".format('bkd_low',bkd_bounds[0],bkd_bounds[1]))
         f.write("{}\t{}\t{}\n".format('bkd_hi',bkd_bounds[2],bkd_bounds[3])) 
         f.close()
