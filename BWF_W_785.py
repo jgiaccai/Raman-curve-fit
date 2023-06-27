@@ -22,6 +22,8 @@ import fnmatch
 #import pandas as pd
 import linecache
 import uncertainties
+from uncertainties import ufloat
+from uncertainties.umath import sqrt,exp,log
 
 # File Parameters
 # =============================================================================
@@ -322,7 +324,6 @@ for file in os.listdir('.'):
         plt.autoscale(enable=True, axis='x', tight=True) 
         plt.ylim(min(BaseResiduals)*1.15,max(BaseResiduals)*1.15)
         
-        #plt.show()
         gs1.update(left=0.13,right=0.96,top=0.95,bottom=0.12) #as percentages of total figure with 1,1 in upper right
         fig.set_size_inches(6, 5) #width, height
         fname = str(SaveName) + '_base.jpg'
@@ -361,12 +362,20 @@ for file in os.listdir('.'):
 
         ModelFit = Gfit + Dfit +D2fit + D3fit + D4fit + U1fit
         
-        G_ints = fit_results[12]  #intensities from the fit, not the initial values
-        D_ints = fit_results[13]
-        D2_ints = FitD2On*fit_results[14]
-        D3_ints = FitD3On*fit_results[15]
-        D4_ints = FitD4On*fit_results[16]
-        U1_ints = fit_results[17]
+        # testing out using uncertainties library
+        (Gloc, Dloc, D2loc, D3loc, D4loc, U1loc, Gwid, Dwid, D2wid, D3wid, D4wid, U1wid, 
+             G_ints, D_ints, D2_ints, D3_ints, D4_ints, U1_ints) = uncertainties.correlated_values(fit_results, covMatrix)
+        
+        D2_ints = FitD2On*D2_ints
+        D3_ints = FitD3On*D3_ints
+        D4_ints = FitD4On*D4_ints
+        
+        # G_ints = fit_results[12]  #intensities from the fit, not the initial values
+        # D_ints = fit_results[13]
+        # D2_ints = FitD2On*fit_results[14]
+        # D3_ints = FitD3On*fit_results[15]
+        # D4_ints = FitD4On*fit_results[16]
+        # U1_ints = fit_results[17]
         TotalIntensity = G_ints + D_ints + D2_ints + D3_ints + D4_ints
        
         Residuals = (signal_fit - ModelFit)
@@ -415,101 +424,85 @@ for file in os.listdir('.'):
         plt.close()
         
         # ID/IG Ratio
-        Exp_ratio = D_ints/G_ints
+        Exp_ratio = D_ints/G_ints #with uncertainties
+        Exp_ratio = fit_results[13]/fit_results[12] # w/o uncertainties calc
         
-        # Calculation of uncertainties
+        # Calculation of uncertainties with covariances
         
-        Exp_ratio_stdev = Exp_ratio*((dFit[12]/G_ints)**2 + (dFit[13]/D_ints)**2 - 
-                                   (2*(covMatrix[13,12])/G_ints/D_ints))**0.5
-        TotIntstdev = (dFit[12]**2 + dFit[13]**2 + dFit[14]**2 + dFit[15]**2 + dFit[16]**2 + 
-                      2*((covMatrix[13,12]) + (covMatrix[13,14]) + 
-                          (covMatrix[13,15]) + (covMatrix[13,16]) + 
-                          (covMatrix[14,12]) + (covMatrix[14,15]) +
-                          (covMatrix[14,16]) + (covMatrix[15,12]) + 
-                          (covMatrix[15,16]) + (covMatrix[16,12])))**0.5
-        #IDITstdev =
-        #ID2ITstdev = 
-        #ID3ITstdev = 
-        #ID4ITstdev = 
-        #IGITstdev = 
-        if FitD2On == 1:
-            ID2IGstdev = (D2_ints/G_ints)*((dFit[14]/D2_ints)**2 + (dFit[12]/G_ints)**2 - (2*(covMatrix[14,12])**0.5/G_ints/D2_ints))**0.5
-        if FitD3On == 1:
-            ID3IDstdev = (D3_ints/D_ints)*((dFit[15]/D3_ints)**2 + (dFit[13]/D_ints)**2 - (2*(covMatrix[13,15])**0.5/D3_ints/D_ints))**0.5
-        if FitD4On == 1:
-            ID4IDstdev = (D4_ints/D_ints)*((dFit[16]/D4_ints)**2 + (dFit[13]/D_ints)**2 - (2*(covMatrix[13,16])**0.5/D4_ints/D_ints))**0.5
+        Exp_ratio_stdev = Exp_ratio*((dFit[12]/fit_results[12])**2 + (dFit[13]/fit_results[13])**2 - 
+                                   (2*(covMatrix[13,12])/fit_results[12]/fit_results[13]))**0.5
+# =============================================================================
+#         TotIntstdev = (dFit[12]**2 + dFit[13]**2 + dFit[14]**2 + dFit[15]**2 + dFit[16]**2 + 
+#                       2*((covMatrix[13,12]) + (covMatrix[13,14]) + 
+#                           (covMatrix[13,15]) + (covMatrix[13,16]) + 
+#                           (covMatrix[14,12]) + (covMatrix[14,15]) +
+#                           (covMatrix[14,16]) + (covMatrix[15,12]) + 
+#                           (covMatrix[15,16]) + (covMatrix[16,12])))**0.5
+# =============================================================================
+        IDIG = D_ints/G_ints  #with uncertainties calc
+        ID2IG = D2_ints/G_ints
+        ID3ID = D3_ints/D_ints
+        ID4ID = D4_ints/D_ints
+        IDIT = D_ints/TotalIntensity
+        IGIT = G_ints/TotalIntensity
+        ID2IT = D2_ints/TotalIntensity
+        ID3IT = D3_ints/TotalIntensity
+        ID4IT = D4_ints/TotalIntensity
         
-        ra = 3.1 # +/- 0.03nm
-        rs = 1.0 #
-        CA = 160*((1240*Ext_Lambda**-1)**-4) # 160 +/- 48
-        CA_min = (160-48)*((1240*Ext_Lambda**-1)**-4)
-        CA_max = (160+48)*((1240*Ext_Lambda**-1)**-4)
         
-        La_Range = np.arange(0.1, 100, step = 0.001)
-        Model_Ratio = [0]*len(La_Range)
-        Min_Ratio = [0]*len(La_Range)
-        Max_Ratio = [0]*len(La_Range)
-        for i in range(0, len(La_Range)):
-            La = La_Range[i]
-            Model_Ratio[i] =CA*(ra**2 - rs**2)/(ra**2 - 2*(rs**2))*(np.exp((-np.pi*rs**2)/(La**2))-np.exp((-np.pi*(ra**2 - rs**2))/(La**2))) 
-            Min_Ratio[i] =CA_min*(ra**2 - rs**2)/(ra**2 - 2*(rs**2))*(np.exp((-np.pi*rs**2)/(La**2))-np.exp((-np.pi*(ra**2 - rs**2))/(La**2))) 
-            Max_Ratio[i] =CA_max*(ra**2 - rs**2)/(ra**2 - 2*(rs**2))*(np.exp((-np.pi*rs**2)/(La**2))-np.exp((-np.pi*(ra**2 - rs**2))/(La**2)))
+# =============================================================================
+#         Calculating the conjugation length, La
+# =============================================================================
         
-        low = np.where(La_Range <=3)[0]
-        La_low = [0]*len(low)
-        Model_Ratio_low = [0]*len(low)
-        Min_Ratio_low = [0]*len(low)
-        Max_Ratio_low = [0]*len(low)
-        for i in range(0, len(low)):
-            La_low[i] = La_Range[low[i]]
-            Model_Ratio_low[i] = Model_Ratio[low[i]]
-            Min_Ratio_low[i] = Min_Ratio[low[i]]
-            Max_Ratio_low[i] = Max_Ratio[low[i]]  
-        low_La = La_low[np.where(abs(Model_Ratio_low - Exp_ratio) == min(abs(Model_Ratio_low - Exp_ratio)))[0][0]]
-        low_La_min_Ca = La_low[np.where(abs(Min_Ratio_low - Exp_ratio) == min(abs(Min_Ratio_low - Exp_ratio)))[0][0]]
-        low_La_max_Ca = La_low[np.where(abs(Max_Ratio_low - Exp_ratio) == min(abs(Max_Ratio_low - Exp_ratio)))[0][0]]
-        low_La_stdev_Ca = abs(low_La_min_Ca - low_La_max_Ca)
+        # from Herdman and Miller 2011, based on Cancado et al. 2011 and Luchhese et al. 2010
+
+        ra = 3.1 #Cancado has 3.1 nm,  Luchhese has 3.00 +/- 0.03 nm
+        rs = 1.0 # Luchhese has 1.00 +/- 0.04 nm, Cancado also uses 1.0
+        CA_mult = ufloat(160,48)# 160 +/- 48 from Cancado et al.
+        CA = CA_mult*((1240*Ext_Lambda**-1)**-4)  # unitless
+        La_model = np.arange(0.1, 100, step = 0.001)
+        Ratio_model = [0]*len(La_model)
+        Ratio_model =CA*(ra**2 - rs**2)/(ra**2 - 2*(rs**2))*(np.exp((-np.pi*rs**2)/(La_model**2))-np.exp((-np.pi*(ra**2 - rs**2))/(La_model**2))) 
         
-        #low_La_min_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_stdev) ) == min(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_stdev))))[0][0]]
-        #low_La_max_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_stdev)) == min(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_stdev))))[0][0]]
-        #low_La_stdev_ratio = abs(low_La_min_ratio - low_La_max_ratio)
-        #low_La_stdev = low_La*((low_La_stdev_ratio/low_La)**2 + (low_La_stdev_Ca/low_La)**2)**0.5
-        #print 'Conjugation Length (low): ', '%.3f' %low_La,  '+/- ', '%.3f' %low_La_stdev, 'nm'
+        # find the La from ID/IG values for the lower part of the curve and the higher part of the curve
+        # no equations from ID/IG for high defect frequency so have to do it the hard way
+                
+        Ratio_model_low = np.where(La_model <=3, Ratio_model, np.nan)
+        La_low = np.where(La_model <=3, La_model, np.nan)
+        low_La = La_low[np.where(abs(Ratio_model_low - Exp_ratio) == min(abs(Ratio_model_low - Exp_ratio)))[0][0]]
+
+        Ratio_model_high = np.where(La_model >3, Ratio_model, 100)
+        La_high = np.where(La_model >3, La_model, np.nan)
+        high_La = La_high[np.where(abs(Ratio_model_high - Exp_ratio) == min(abs(Ratio_model_high - Exp_ratio)))[0][0]]
+        high_La = La_high[np.where(abs(Ratio_model_high - Exp_ratio) == min(abs(Ratio_model_high - Exp_ratio)))[0][0]]
         
-        high = np.where(La_Range >=3)[0]
-        La_high = [0]*len(high)
-        Model_Ratio_high = [0]*len(high)
-        Min_Ratio_high = [0]*len(high)
-        Max_Ratio_high = [0]*len(high)
-        for i in range(0, len(high)):
-            La_high[i] = La_Range[high[i]]
-            Model_Ratio_high[i] = Model_Ratio[high[i]]
-            Min_Ratio_high[i] = Min_Ratio[high[i]]
-            Max_Ratio_high[i] = Max_Ratio[high[i]]  
-        high_La = La_high[np.where(abs(Model_Ratio_high - Exp_ratio) == min(abs(Model_Ratio_high - Exp_ratio)))[0][0]]
-        high_La_min_Ca = La_high[np.where(abs(Min_Ratio_high - Exp_ratio) == min(abs(Min_Ratio_high - Exp_ratio)))[0][0]]
-        high_La_max_Ca = La_high[np.where(abs(Max_Ratio_high - Exp_ratio) == min(abs(Max_Ratio_high - Exp_ratio)))[0][0]]
-        high_La_stdev_Ca = abs(high_La_min_Ca - high_La_max_Ca)
+        # when resolving eq from Herdman and Miller for LsubA, if LsubA approaches 1, 
+        # we can neglect second exponential term as it gets very small compared to first term (by e-10)
+        # however for LsubA close to 20, the two terms are close in value, so uncertainty only for low_La
         
-        #high_La_min_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_stdev) ) == min(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_stdev))))[0][0]]
-        #high_La_max_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_stdev)) == min(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_stdev))))[0][0]]
-        #high_La_stdev_ratio = abs(high_La_min_ratio - high_La_max_ratio)
-        #high_La_stdev = high_La*((high_La_stdev_ratio/high_La)**2 + (high_La_stdev_Ca/high_La)**2)**0.5
-        #print 'Conjugation Length (high): ', '%.3f' %high_La,  '+/- ', '%.3f' %high_La_stdev, 'nm'
+        low_La_calc = sqrt((-1*np.pi)/(log((ra**2-2/ra**2-1)*(IDIG/CA))))
         
+        high_La_calc = sqrt(1/((IDIG)/CA/(np.pi*(3.1**2-1))))
+
+        
+# =============================================================================
         Ratio = [Exp_ratio, Exp_ratio]
-        La = [low_La, high_La]
+        La_calc = [low_La, high_La]
+        
+        Ratio_model_plot = np.fromiter((Ratio_model[i].n for i in range(len(Ratio_model))),float, count = len(Ratio_model))
+        dRatio_model = np.fromiter((Ratio_model[i].s for i in range(len(Ratio_model))),float, count = len(Ratio_model))
+        
         
         fig = plt.figure(3)
         ax = fig.add_subplot(111)
-        ax.plot(La_Range , Model_Ratio,'-k')
-        ax.fill_between(La_Range, Min_Ratio, Max_Ratio,  facecolor='gray', alpha = 0.25)
-        #ax.plot(La , Ratio,'or')
-        ax.loglog(La , Ratio,'or')
-        high_label = '%.3f' %high_La #+ '+/- ' + '%.3f' %high_La_stdev + 'nm'
-        low_label = '%.3f' %low_La #+ '+/- ' + '%.3f' %low_La_stdev + 'nm'
-        ax.text(high_La, Exp_ratio, high_label, va="top", ha = "center", size = 10)
-        ax.text(low_La, Exp_ratio, low_label, va="top", ha = "center", size = 10)
+        ax.plot(La_model , Ratio_model_plot ,'-k')
+        ax.fill_between(La_model, Ratio_model_plot - dRatio_model, Ratio_model_plot + dRatio_model,  facecolor='gray', alpha = 0.25)
+        # will need to double the dRatio_model in fill line for 95% confidence only one stdev now
+        ax.loglog(La_calc , Ratio,'or')
+        high_label = '{:10.2f}'.format(high_La)
+        low_label = '{:10.2f}'.format(low_La)
+        ax.text(high_La, Exp_ratio-0.5, high_label, va="top", ha = "center", size = 10) #offset for legibility
+        ax.text(low_La, Exp_ratio-0.5, low_label, va="top", ha = "center", size = 10) #offset for legibility
         ax.set_xlabel('La')
         ax.set_ylabel('ID/IG')
         #ax.set_xlim(0, 10)
@@ -540,36 +533,36 @@ for file in os.listdir('.'):
         
         f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], dFit[0]) )
         f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], dFit[6] ))
-        f.write("{}\t{}\t{}\n".format('G Band Peak Intensity', G_ints,dFit[12]))
+        f.write("{}\t{}\t{}\n".format('G Band Peak Intensity', fit_results[12],dFit[12]))
         
         f.write("{}\t{}\t{}\n".format('D Band Peak Position',fit_results[1],dFit[1]))
         f.write("{}\t{}\t{}\n".format('D Band Peak Width',fit_results[7],dFit[7]))
-        f.write("{}\t{}\t{}\n".format('D Band Peak Intensity', D_ints,dFit[13]))
+        f.write("{}\t{}\t{}\n".format('D Band Peak Intensity', fit_results[13],dFit[13]))
         
         f.write("{}\t{}\t{}\n".format('D2 Band Peak Position',fit_results[2],dFit[2]))
         f.write("{}\t{}\t{}\n".format('D2 Band Peak Width',fit_results[8],dFit[8]))
-        f.write("{}\t{}\t{}\n".format('D2 Band Peak Intensity', D2_ints,dFit[14]))
+        f.write("{}\t{}\t{}\n".format('D2 Band Peak Intensity', fit_results[14],dFit[14]))
         
         f.write("{}\t{}\t{}\n".format('D3 Band Peak Position',fit_results[3],dFit[3]))
         f.write("{}\t{}\t{}\n".format('D3 Band Peak Width',fit_results[9],dFit[9]))
-        f.write("{}\t{}\t{}\n".format('D3 Band Peak Intensity', D3_ints,dFit[15]))
+        f.write("{}\t{}\t{}\n".format('D3 Band Peak Intensity', fit_results[15],dFit[15]))
         
         f.write("{}\t{}\t{}\n".format('D4 Band Peak Position',fit_results[4],dFit[4]))
         f.write("{}\t{}\t{}\n".format('D4 Band Peak Width',fit_results[10],dFit[10]))
-        f.write("{}\t{}\t{}\n".format('D4 Band Peak Intensity', D4_ints,dFit[16]))
+        f.write("{}\t{}\t{}\n".format('D4 Band Peak Intensity', fit_results[16],dFit[16]))
         
-        f.write("{}\t{}\t{}\n".format('Conjugation Length (low)',low_La,0))
-        f.write("{}\t{}\t{}\n".format('Conjugation Length (high)',high_La,0))
+        f.write("{}\t{}\t{}\n".format('Conjugation Length (low)',low_La_calc.n,low_La_calc.s))
+        f.write("{}\t{}\t{}\n".format('Conjugation Length (high)',high_La,high_La_calc.s))
         f.write("{}\t{}\t{}\n".format('ID/IG',Exp_ratio,Exp_ratio_stdev))
 
-        f.write("{}\t{}\t{}\n".format('ID/total ratio', D_ints/TotalIntensity,0))
-        f.write("{}\t{}\t{}\n".format('ID2/total ratio', D2_ints/TotalIntensity,0))
-        f.write("{}\t{}\t{}\n".format('ID3/total ratio', D3_ints/TotalIntensity,0))
-        f.write("{}\t{}\t{}\n".format('ID4/total ratio', D4_ints/TotalIntensity,0))
-        f.write("{}\t{}\t{}\n".format('IG/total ratio',G_ints/TotalIntensity,0))
-        f.write("{}\t{}\t{}\n".format('ID2/IG ratio', D2_ints/G_ints,ID2IGstdev))
-        f.write("{}\t{}\t{}\n".format('ID3/ID ratio', D3_ints/D_ints,ID3IDstdev))
-        f.write("{}\t{}\t{}\n".format('ID4/ID ratio', D4_ints/D_ints,ID4IDstdev))
+        f.write("{}\t{}\t{}\n".format('ID/total ratio', IDIT.n,IDIT.s))
+        f.write("{}\t{}\t{}\n".format('ID2/total ratio', ID2IT.n,ID2IT.s))
+        f.write("{}\t{}\t{}\n".format('ID3/total ratio', ID3IT.n,ID3IT.s))
+        f.write("{}\t{}\t{}\n".format('ID4/total ratio', ID4IT.n,ID4IT.s))
+        f.write("{}\t{}\t{}\n".format('IG/total ratio',IGIT.n,IGIT.s))
+        f.write("{}\t{}\t{}\n".format('ID2/IG ratio', ID2IG.n,ID2IG.s))
+        f.write("{}\t{}\t{}\n".format('ID3/ID ratio', ID3ID.n,ID3ID.s))
+        f.write("{}\t{}\t{}\n".format('ID4/ID ratio', ID4ID.n,ID4ID.s))
         f.write("{}\t{}\t{}\n".format('bkd_low',bkd_bounds[0],bkd_bounds[1]))
         f.write("{}\t{}\t{}\n".format('bkd_hi',bkd_bounds[2],bkd_bounds[3])) 
         f.close()
