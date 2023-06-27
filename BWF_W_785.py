@@ -353,18 +353,27 @@ for file in os.listdir('.'):
             print(minres[3])
             fit_results = np.zeros(NumParams)
             continue
-        Gfit = FitGOn*BWF(fit_results[0],fit_results[6],fit_results[12])
-        Dfit = FitDOn*lorentz(fit_results[1],fit_results[7],fit_results[13])
-        D2fit = FitD2On*lorentz(fit_results[2],fit_results[8],fit_results[14])
-        D3fit = FitD3On*lorentz(fit_results[3],fit_results[9],fit_results[15])
-        D4fit = FitD4On*lorentz(fit_results[4],fit_results[10],fit_results[16])
-        U1fit = FitU1On*lorentz(fit_results[5],fit_results[11],fit_results[17])
-
-        ModelFit = Gfit + Dfit +D2fit + D3fit + D4fit + U1fit
         
         # setting intensities using uncertainties library
         (Gloc, Dloc, D2loc, D3loc, D4loc, U1loc, Gwid, Dwid, D2wid, D3wid, D4wid, U1wid, 
              G_ints, D_ints, D2_ints, D3_ints, D4_ints, U1_ints) = uncertainties.correlated_values(fit_results, covMatrix)
+        
+        Gfit_nom = FitGOn*BWF(fit_results[0],fit_results[6],fit_results[12])
+        Dfit_nom = FitDOn*lorentz(fit_results[1],fit_results[7],fit_results[13])
+        D2fit_nom = FitD2On*lorentz(fit_results[2],fit_results[8],fit_results[14])
+        D3fit_nom = FitD3On*lorentz(fit_results[3],fit_results[9],fit_results[15])
+        D4fit_nom = FitD4On*lorentz(fit_results[4],fit_results[10],fit_results[16])
+        U1fit_nom = FitU1On*lorentz(fit_results[5],fit_results[11],fit_results[17])
+        
+        Gfit = FitGOn*BWF(Gloc,Gwid,G_ints)
+        Dfit = FitDOn*lorentz(Dloc,Dwid,D_ints)
+        D2fit = FitD2On*lorentz(D2loc,D2wid,D2_ints)
+        D3fit = FitD3On*lorentz(D3loc,D3wid,D3_ints)
+        D4fit = FitD4On*lorentz(D4loc,D4wid,D4_ints)
+        U1fit = FitU1On*lorentz(U1loc,U1wid,U1_ints)
+
+        ModelFit = Gfit + Dfit +D2fit + D3fit + D4fit + U1fit
+        
         
         D2_ints = FitD2On*D2_ints
         D3_ints = FitD3On*D3_ints
@@ -376,25 +385,33 @@ for file in os.listdir('.'):
         ss_res = np.sum((Residuals) ** 2)
         ss_tot = np.sum((signal_fit - np.mean(signal_fit)) ** 2)
         R2_fit = 1-ss_res/ss_tot # not meaningful because can't use R2 on Gaussian or Lorentzian fits, so need to use standard error regression
-        SEE_fit = np.sqrt(ss_res/(len(signal_fit)-NumPeaks*3))
+        SEE_fit = sqrt(ss_res/(len(signal_fit)-NumPeaks*3))
         
         # Figure 4 Plot of individual peak fits and total peak fit with experimental
+        
+        ModelFit_nom = np.fromiter((ModelFit[i].n for i in range(len(ModelFit))),float, count = len(ModelFit))
+        ModelFit_unc = np.fromiter((ModelFit[i].s for i in range(len(ModelFit))),float, count = len(ModelFit))
+        Residuals_nom = np.fromiter((Residuals[i].n for i in range(len(ModelFit))),float, count = len(ModelFit))
+
+        
         fig = plt.figure(4)
         gs4 = fig.add_gridspec(nrows=2, ncols=1,
                   hspace=0, wspace=0, height_ratios=[1, 5])
         ax40 = fig.add_subplot(gs4[1])
         ax40.plot(x_fit, signal_fit,'.k', label = 'Experimental')
-        ax40.plot(x_fit, Gfit,'-g', label = 'G Peak Fit')
-        ax40.plot(x_fit, Dfit,'-b', label = 'D Peak Fit')
+        ax40.plot(x_fit, Gfit_nom,'-g', label = 'G Peak Fit')
+        ax40.plot(x_fit, Dfit_nom,'-b', label = 'D Peak Fit')
         if FitD2On == 1:
-            ax40.plot(x_fit , D2fit,'-y', label = 'D2 Peak Fit')
+            ax40.plot(x_fit , D2fit_nom,'-y', label = 'D2 Peak Fit')
         if FitD3On == 1:
-            ax40.plot(x_fit, D3fit,'-c', label = 'D3 Peak Fit')
+            ax40.plot(x_fit, D3fit_nom,'-c', label = 'D3 Peak Fit')
         if FitD4On == 1:
-            ax40.plot(x_fit , D4fit,'-m', label = 'D4 Peak Fit')
+            ax40.plot(x_fit , D4fit_nom,'-m', label = 'D4 Peak Fit')
         if FitU1On == 1:
-            ax40.plot(x_fit, U1fit, '-y', label = 'U1 peak fit')
-        ax40.plot(x_fit, ModelFit,'-r', label = 'Summed Peak Fit')
+            ax40.plot(x_fit, U1fit_nom, '-y', label = 'U1 peak fit')
+        ax40.plot(x_fit, ModelFit_nom,'-r', label = 'Summed Peak Fit')
+        ax40.fill_between(x_fit, ModelFit_nom - ModelFit_unc, ModelFit_nom + ModelFit_unc,  facecolor='red', alpha = 0.25)
+        # will need to double the ModelFit_unc in fill line for 95% confidence only one stdev now
         ax40.set_xlabel(r'Raman Shift / cm$^{-1}$', fontsize=16)
         plt.autoscale(enable=True, axis='x', tight=True)
         plt.autoscale(enable=True, axis='y')
@@ -403,16 +420,16 @@ for file in os.listdir('.'):
         plt.tick_params(axis='both', which='major', labelsize=14)
         
         ax41 = fig.add_subplot(gs4[0])
-        ax41.plot(x_fit,Residuals, '.b')
+        ax41.plot(x_fit,Residuals_nom, '.b')
         ax41.axhline(0, linestyle='--', color = 'gray', linewidth = 1)
         ax41.set_ylabel('Residuals')
         plt.setp(ax41, xticks=[800,1000,1200,1400,1600,1800])
         ax41.tick_params(direction='in',labelbottom=False,labelleft=True)
         plt.autoscale(enable=True, axis='x', tight=True) 
         
-        plt.ylim(min(Residuals)*1.15,max(Residuals)*1.15)
+        plt.ylim(min(Residuals_nom)*1.15,max(Residuals_nom)*1.15)
         
-        gs4.update(left=0.13,right=0.94,top=0.95,bottom=0.15) #as percentages of total figure with 1,1 in upper right
+        gs4.update(left=0.16,right=0.94,top=0.95,bottom=0.15) #as percentages of total figure with 1,1 in upper right
         fig.set_size_inches(6, 5) #width, height
         plt.savefig(SaveName + '_fit.jpg', dpi=300)
         plt.close()
@@ -519,8 +536,8 @@ for file in os.listdir('.'):
         f.write("{}\t{}\t{}\n".format('Baseline R2', BaseR2[0], 0) )
         f.write("{}\t{}\t{}\n".format('Baseline Slope', BaseSlope, 0) )
         
-        f.write("{}\t{}\t{}\n".format('Peak Fit R2?', R2_fit, 0) )
-        f.write("{}\t{}\t{}\n".format('Peak Fit SEE', SEE_fit, 0) )
+        f.write("{}\t{}\t{}\n".format('Peak Fit R2ish', R2_fit.n, R2_fit.s) )
+        f.write("{}\t{}\t{}\n".format('Peak Fit SEE', SEE_fit.n, SEE_fit.s) )
         
         f.write("{}\t{}\t{}\n".format('qBWF', qBWF, 0) )
         
