@@ -319,7 +319,7 @@ for file in os.listdir('.'):
         ax11.plot(bkg_x,BaseResiduals, '.b')
         ax11.axhline(0, linestyle='--', color = 'gray', linewidth = 1)
         ax11.set_ylabel('Residuals')
-        plt.setp(ax11, xticks=[1000,1200,1400,1600,1800,2000])
+        plt.setp(ax11, xticks=[600,800,1000,1200,1400,1600,1800,2000])
         ax11.tick_params(direction='in',labelbottom=True,labelleft=True)
         plt.autoscale(enable=True, axis='x', tight=True) 
         plt.ylim(min(BaseResiduals)*1.15,max(BaseResiduals)*1.15)
@@ -362,7 +362,7 @@ for file in os.listdir('.'):
 
         ModelFit = Gfit + Dfit +D2fit + D3fit + D4fit + U1fit
         
-        # testing out using uncertainties library
+        # setting intensities using uncertainties library
         (Gloc, Dloc, D2loc, D3loc, D4loc, U1loc, Gwid, Dwid, D2wid, D3wid, D4wid, U1wid, 
              G_ints, D_ints, D2_ints, D3_ints, D4_ints, U1_ints) = uncertainties.correlated_values(fit_results, covMatrix)
         
@@ -370,12 +370,6 @@ for file in os.listdir('.'):
         D3_ints = FitD3On*D3_ints
         D4_ints = FitD4On*D4_ints
         
-        # G_ints = fit_results[12]  #intensities from the fit, not the initial values
-        # D_ints = fit_results[13]
-        # D2_ints = FitD2On*fit_results[14]
-        # D3_ints = FitD3On*fit_results[15]
-        # D4_ints = FitD4On*fit_results[16]
-        # U1_ints = fit_results[17]
         TotalIntensity = G_ints + D_ints + D2_ints + D3_ints + D4_ints
        
         Residuals = (signal_fit - ModelFit)
@@ -404,7 +398,7 @@ for file in os.listdir('.'):
         ax40.set_xlabel(r'Raman Shift / cm$^{-1}$', fontsize=16)
         plt.autoscale(enable=True, axis='x', tight=True)
         plt.autoscale(enable=True, axis='y')
-        plt.setp(ax40, xticks=[1000,1200,1400,1600,1800,2000])
+        plt.setp(ax40, xticks=[600,800,1000,1200,1400,1600,1800,2000])
         ax40.set_ylabel('Raman Intensity', fontsize=16)
         plt.tick_params(axis='both', which='major', labelsize=14)
         
@@ -480,7 +474,7 @@ for file in os.listdir('.'):
         # we can neglect second exponential term as it gets very small compared to first term (by e-10)
         # however for LsubA close to 20, the two terms are close in value, so uncertainty only for low_La
         
-        low_La_calc = sqrt((-1*np.pi)/(log((ra**2-2/ra**2-1)*(IDIG/CA))))
+        low_La_calc = sqrt((-1*np.pi)/(log(((ra**2-2)/(ra**2-1))*(IDIG/CA))))
         
         high_La_calc = sqrt(1/((IDIG)/CA/(np.pi*(3.1**2-1))))
 
@@ -488,6 +482,7 @@ for file in os.listdir('.'):
 # =============================================================================
         Ratio = [Exp_ratio, Exp_ratio]
         La_calc = [low_La, high_La]
+        La_calc2 = [low_La_calc.n, high_La_calc.n]
         
         Ratio_model_plot = np.fromiter((Ratio_model[i].n for i in range(len(Ratio_model))),float, count = len(Ratio_model))
         dRatio_model = np.fromiter((Ratio_model[i].s for i in range(len(Ratio_model))),float, count = len(Ratio_model))
@@ -498,20 +493,18 @@ for file in os.listdir('.'):
         ax.plot(La_model , Ratio_model_plot ,'-k')
         ax.fill_between(La_model, Ratio_model_plot - dRatio_model, Ratio_model_plot + dRatio_model,  facecolor='gray', alpha = 0.25)
         # will need to double the dRatio_model in fill line for 95% confidence only one stdev now
-        ax.loglog(La_calc , Ratio,'or')
-        high_label = '{:10.2f}'.format(high_La)
-        low_label = '{:10.2f}'.format(low_La)
+        ax.loglog(La_calc2 , Ratio,'or')
+        high_label = u'{:.2fP}'.format(high_La_calc)
+        low_label = u'{:.2fP}'.format(low_La_calc)
         ax.text(high_La, Exp_ratio-0.5, high_label, va="top", ha = "center", size = 10) #offset for legibility
         ax.text(low_La, Exp_ratio-0.5, low_label, va="top", ha = "center", size = 10) #offset for legibility
-        ax.set_xlabel('La')
-        ax.set_ylabel('ID/IG')
-        #ax.set_xlim(0, 10)
-        #ax.set_ylim(0, 2)
+        ax.set_xlabel('$L_a$', fontsize=16)
+        ax.set_ylabel('$I_D$ / $I_G$', fontsize=16)
         ax.set_xlim(0.1, 100)
         ax.set_ylim(0.01, 100)
-        plt.savefig(SaveName + '_Ratio.jpg')
+        fig.set_size_inches(6, 5) #width, height
+        plt.savefig(SaveName + '_Ratio.jpg',dpi=300)
         
-        #plt.show()
         plt.close()
         
         
