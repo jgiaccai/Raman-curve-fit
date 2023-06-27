@@ -166,10 +166,10 @@ def EnterData():
     '''need to work G and D starting peak intensities from initial values'''
     FitParam[12]  = IIM*G_ints  # G peak intensity  
     FitParam[13]  = IIM*D_ints  # D peak intensity
-    FitParam[14] = (0.4*FitParam[12])
-    FitParam[15] = (0.4*FitParam[13])
-    FitParam[16] = (0.4*FitParam[13])
-    FitParam[17]  = (0.25*FitParam[12]) 
+    FitParam[14] = (0.4*FitParam[12])*FitD2On
+    FitParam[15] = (0.4*FitParam[13])*FitD3On
+    FitParam[16] = (0.4*FitParam[13])*FitD4On
+    FitParam[17]  = (0.25*FitParam[12])*FitU1On
 
     Gfit = FitGOn*BWF(FitParam[0],FitParam[6],FitParam[12])
     Dfit = FitDOn*lorentz(FitParam[1],FitParam[7],FitParam[13])
@@ -536,8 +536,8 @@ for file in os.listdir('.'):
         f.write("{}\t{}\t{}\n".format('Baseline R2', BaseR2[0], 0) )
         f.write("{}\t{}\t{}\n".format('Baseline Slope', BaseSlope, 0) )
         
-        f.write("{}\t{}\t{}\n".format('Peak Fit R2ish', R2_fit.n, R2_fit.s) )
-        f.write("{}\t{}\t{}\n".format('Peak Fit SEE', SEE_fit.n, SEE_fit.s) )
+        f.write("{}\t{}\t{}\n".format('Peak Fit R2ish', float(R2_fit.n), float(R2_fit.s)) )
+        f.write("{}\t{}\t{}\n".format('Peak Fit SEE', float(SEE_fit.n), float(SEE_fit.s)) )
         
         f.write("{}\t{}\t{}\n".format('qBWF', qBWF, 0) )
         
