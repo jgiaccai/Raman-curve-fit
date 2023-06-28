@@ -5,23 +5,28 @@
 ## 20230408 altered to allow fitting of any number of Lorentzian peaks, defined lines 29-34
 ## 20230522 altered to fit G peak as a BWF with q of -10
 ## 20230524 choose baseline fitting order at top 
+## 20230628 v.3 now with uncertainties!
+
 
 import sys
 import numpy as np
-#from scipy.optimize import curve_fit, fmin
+from scipy.optimize import curve_fit
 from scipy.optimize import minimize
 from scipy.optimize import least_squares
 import numpy.polynomial.polynomial as poly
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
-from scipy import signal
-from scipy.interpolate import interp1d
+#from matplotlib.gridspec import GridSpec
+#from scipy import signal
 import os
 import fnmatch
-import random
-import math
-from time import sleep
-import pandas as pd
+#import random
+#import math
+#from time import sleep
+import pandas as pd  #needed to read JY data
+import linecache
+import uncertainties
+from uncertainties import ufloat
+from uncertainties.umath import sqrt,exp,log
 
 # File Parameters
 # =============================================================================
@@ -34,7 +39,7 @@ FitD3On = 0
 FitD4On = 0
 FitU1On = 1 #unidentified peak but need to include in envelope for 405 etc
 
-fitVersion = 2.0 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
+fitVersion = 3.0 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
 
 base_order = 1 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [965, 1135, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
@@ -50,7 +55,6 @@ qBWF = -10
 # =============================================================================
 
 Ext_Lambda = 000 #nm
-#iterations = 50
 
 TotalNumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On + FitU1On
 NumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On
@@ -58,15 +62,51 @@ NumPksApp = str(NumPeaks)+'BWF'
 NumParams    = 3*6     #{Number of parameters to fit}
 FitParam =np.zeros(NumParams) 
 bounds = np.zeros((NumParams,2))
+lobounds = np.zeros(18)
+hibounds = np.zeros(18)
 
-lowG = G_bounds[0] - (G_bounds[1]/2)
-highG = G_bounds[0] + (G_bounds[1]/2)
-lowD = D_bounds[0] - (D_bounds[1]/2)
-highD = D_bounds[0] + (D_bounds[1]/2)
-    
-lowD = 1100
 CollDet = 'NMNH unk det'  #If need to restart, replace with collection details
 
+# only need to set peak location and width bounds once, at the beginning of the program  
+# bounds for optimize.curve_fit: an array of lows, an array of highs
+
+lobounds[0] = (G_bounds[0]-G_bounds[1])
+lobounds[1] = (D_bounds[0]-D_bounds[1])
+lobounds[2] = (D2_bounds[0]-D2_bounds[1])
+lobounds[3] = (D3_bounds[0]-D3_bounds[1])
+lobounds[4] = (D4_bounds[0]-D4_bounds[1])
+lobounds[5] = (U1_bounds[0]-U1_bounds[1])
+
+lobounds[6] = (G_bounds[2]-G_bounds[3])
+lobounds[7] = (D_bounds[2]-D_bounds[3])
+lobounds[8] = (D2_bounds[2]-D2_bounds[3])
+lobounds[9] = (D3_bounds[2]-D3_bounds[3])
+lobounds[10] = (D4_bounds[2]-D4_bounds[3])
+lobounds[11] = (U1_bounds[2]-U1_bounds[3])
+
+hibounds[0] = (G_bounds[0]+G_bounds[1])
+hibounds[1] = (D_bounds[0]+D_bounds[1])
+hibounds[2] = (D2_bounds[0]+D2_bounds[1])
+hibounds[3] = (D3_bounds[0]+D3_bounds[1])
+hibounds[4] = (D4_bounds[0]+D4_bounds[1])
+hibounds[5] = (U1_bounds[0]+U1_bounds[1])
+
+hibounds[6] = (G_bounds[2]+G_bounds[3])
+hibounds[7] = (D_bounds[2]+D_bounds[3])
+hibounds[8] = (D2_bounds[2]+D2_bounds[3])
+hibounds[9] = (D3_bounds[2]+D3_bounds[3])
+hibounds[10] = (D4_bounds[2]+D4_bounds[3])
+hibounds[11] = (U1_bounds[2]+U1_bounds[3])
+
+hibounds[12] = 500 #made up intensities just to fill the array out will customize per spectrum
+hibounds[13] = 500
+hibounds[14] = 500
+hibounds[15] = 100
+hibounds[16] = 100
+hibounds[17] = 500
+
+bounds = lobounds,hibounds
+  
 def ReadCollDetails(inputFilename):
     global CollDet, Ext_Lambda
     lineList = []
@@ -111,7 +151,8 @@ def BWF(xc,w,I):
 
 def EnterData():
     
-    global FitParam, G_ints, D_ints, U1_ints, NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds, bounds
+    global FitParam, G_ints, D_ints, U1_ints, NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds
+    global bounds, lobounds, hibounds
 
     FitParam[0] = G_bounds[0] # G peak position
     FitParam[1]  = D_bounds[0] # D peak position
@@ -168,34 +209,23 @@ def EnterData():
     # #plt.show()
     # plt.close()
     
-    bounds[0] = (G_bounds[0]-G_bounds[1],G_bounds[0]+G_bounds[1])
-    bounds[1] = (D_bounds[0]-D_bounds[1],D_bounds[0]+D_bounds[1])
-    bounds[2] = (D2_bounds[0]-D2_bounds[1],D2_bounds[0]+D2_bounds[1])
-    bounds[3] = (D3_bounds[0]-D3_bounds[1],D3_bounds[0]+D3_bounds[1])
-    bounds[4] = (D4_bounds[0]-D4_bounds[1],D4_bounds[0]+D4_bounds[1])
-    bounds[5] = (U1_bounds[0]-U1_bounds[1],U1_bounds[0]+U1_bounds[1])
 
-    
-    bounds[6] = (G_bounds[2]-G_bounds[3],G_bounds[2]+G_bounds[3])
-    bounds[7] = (D_bounds[2]-D_bounds[3],D_bounds[2]+D_bounds[3])
-    bounds[8] = (D2_bounds[2]-D2_bounds[3],D2_bounds[2]+D2_bounds[3])
-    bounds[9] = (D3_bounds[2]-D3_bounds[3],D3_bounds[2]+D3_bounds[3])
-    bounds[10] = (D4_bounds[2]-D4_bounds[3],D4_bounds[2]+D4_bounds[3])
-    bounds[11] = (U1_bounds[2]-U1_bounds[3],U1_bounds[2]+U1_bounds[3])
+    lobounds[12] = 0.5*G_ints  # we might want to let G go to zero depending on D2
+    lobounds[13] = 0.5*D_ints
+    hibounds[12] = 1.2*G_ints
+    hibounds[13] = 1.2*D_ints
 
+    hibounds[14] = 0.5*G_ints
+    hibounds[15] = 0.5*D_ints
+    hibounds[16] = 0.5*D_ints
+    hibounds[17] = 0.5*G_ints
     
-    bounds[12] = (0.5*G_ints,1.2*G_ints)
-    bounds[13] = (0.5*D_ints,1.2*D_ints)
-    bounds[14] = (1,0.5*G_ints)
-    bounds[15] = (1,0.5*D_ints)
-    bounds[16] = (1,0.5*D_ints)
-    bounds[17] = (1,0.5*G_ints)
+    bounds = (lobounds,hibounds)
     
-    #print('Bounds are ',bounds)
     
-def Evaluate(EvalSimp):   
-    global NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds
-    global x_fit, signal_fit, Residuals
+def FitFunc(x_fit, *EvalSimp):   
+    #global NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds
+    #global signal_fit, Residuals
     
     '''
     Need to 
@@ -212,12 +242,12 @@ def Evaluate(EvalSimp):
     U1fit = FitU1On*lorentz(EvalSimp[5], EvalSimp[11], EvalSimp[17])
 
     
-    EvalFit = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit
+    FitY = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit
     
-    Residuals = (signal_fit - EvalFit)
-    ErrorSum = np.sum((Residuals)**2)  #fitting routine minimizes sum of square of residuals
+    #Residuals = (signal_fit - EvalFit)
+    #ErrorSum = np.sum((Residuals)**2)  #fitting routine minimizes sum of square of residuals
     
-    return(ErrorSum)
+    return(FitY)
 
 
 
@@ -240,10 +270,10 @@ for file in os.listdir('.'):
         all_data = all_data.transpose()
         
         xy_data = all_data[1:]
-        wavenum = xy_data[0]
+        wavenum = np.array(xy_data[0])
         
         for n in range(1,len(xy_data.columns)):
-            signal = xy_data[n]
+            signal = np.array(xy_data[n])
             SpotNo = n
             print(n)
             SaveName = 'results/' + filename +'_POS'+ str(n).zfill(2) + '_'+ NumPksApp
@@ -262,6 +292,7 @@ for file in os.listdir('.'):
             ##  baseline fit
             BasePara, BaseRegrStat = poly.polyfit(bkg_x, bkg_signal, base_order, full = True)
             baseline = poly.polyval(x_fit, BasePara)
+            baseline_bkgarea = poly.polyval(bkg_x, BasePara)
             BaseTSS = ((bkg_signal - np.mean(bkg_signal))**2).sum()
             BaseR2= 1-(BaseRegrStat[0]/BaseTSS) #should work regardless of order of fit
             # calculate rise/run for fitted baseline immediately before and after the peak region.
@@ -274,7 +305,7 @@ for file in os.listdir('.'):
             else:
                 BaseSlope = PseudoSlope
             
-            BaseResiduals = bkg_signal-baseline
+            BaseResiduals = bkg_signal-baseline_bkgarea
             
             # figure with baseline fit and residuals
             
@@ -292,14 +323,14 @@ for file in os.listdir('.'):
             plt.autoscale(enable=True, axis='y', tight=True)
             
             ax11 = fig.add_subplot(gs1[0])
-            ax11.plot(x_fit,BaseResiduals, '.b')
+            ax11.plot(bkg_x,BaseResiduals, '.b')
             ax11.axhline(0, linestyle='--', color = 'gray', linewidth = 1)
             ax11.set_ylabel('Residuals')
-            plt.setp(ax11, xticks=[1000,1200,1400,1600,1800,2000])
+            plt.setp(ax11, xticks=[600,800,1000,1200,1400,1600,1800,2000])
             ax11.tick_params(direction='in',labelbottom=True,labelleft=True)
             plt.autoscale(enable=True, axis='x', tight=True) 
             plt.ylim(min(BaseResiduals)*1.15,max(BaseResiduals)*1.15)
-            
+                
             #plt.show()
             gs1.update(left=0.13,right=0.96,top=0.95,bottom=0.12) #as percentages of total figure with 1,1 in upper right
             fig.set_size_inches(6, 5) #width, height
@@ -319,194 +350,202 @@ for file in os.listdir('.'):
             
             EnterData()
             #print 'FitParam ', FitParam
-            minres = minimize(Evaluate,FitParam,method='SLSQP',tol=1e-8,bounds=bounds,options={'maxiter':1e5}) 
-            if minres.success == 1:
-                fit_results=minres.x
+            minres = curve_fit(FitFunc,x_fit,signal_fit,p0=FitParam,method = 'trf', bounds=bounds, full_output=True) 
+            if minres[4] > 1 and minres[4] < 4:
+                fit_results=minres[0]
+                covMatrix = minres[1] 
+                dFit = np.sqrt(np.diag(covMatrix))
                 #print(fit_results)
-                iterations = minres.nit
+                #iterations = minres.nfev # I think? not sure 
             else:
-                print(minres.message)
+                print(minres[3])
                 fit_results = np.zeros(NumParams)
                 continue
-            Gfit = FitGOn*BWF(fit_results[0],fit_results[6],fit_results[12])
-            Dfit = FitDOn*lorentz(fit_results[1],fit_results[7],fit_results[13])
-            D2fit = FitD2On*lorentz(fit_results[2],fit_results[8],fit_results[14])
-            D3fit = FitD3On*lorentz(fit_results[3],fit_results[9],fit_results[15])
-            D4fit = FitD4On*lorentz(fit_results[4],fit_results[10],fit_results[16])
-            U1fit = FitU1On*lorentz(fit_results[5],fit_results[11],fit_results[17])
+            
+            # setting intensities using uncertainties library
+            (Gloc, Dloc, D2loc, D3loc, D4loc, U1loc, Gwid, Dwid, D2wid, D3wid, D4wid, U1wid, 
+                 G_ints, D_ints, D2_ints, D3_ints, D4_ints, U1_ints) = uncertainties.correlated_values(fit_results, covMatrix)
+            
+            Gfit_nom = FitGOn*BWF(fit_results[0],fit_results[6],fit_results[12])
+            Dfit_nom = FitDOn*lorentz(fit_results[1],fit_results[7],fit_results[13])
+            D2fit_nom = FitD2On*lorentz(fit_results[2],fit_results[8],fit_results[14])
+            D3fit_nom = FitD3On*lorentz(fit_results[3],fit_results[9],fit_results[15])
+            D4fit_nom = FitD4On*lorentz(fit_results[4],fit_results[10],fit_results[16])
+            U1fit_nom = FitU1On*lorentz(fit_results[5],fit_results[11],fit_results[17])
+            
+            Gfit = FitGOn*BWF(Gloc,Gwid,G_ints)
+            Dfit = FitDOn*lorentz(Dloc,Dwid,D_ints)
+            D2fit = FitD2On*lorentz(D2loc,D2wid,D2_ints)
+            D3fit = FitD3On*lorentz(D3loc,D3wid,D3_ints)
+            D4fit = FitD4On*lorentz(D4loc,D4wid,D4_ints)
+            U1fit = FitU1On*lorentz(U1loc,U1wid,U1_ints)
     
             ModelFit = Gfit + Dfit +D2fit + D3fit + D4fit + U1fit
             
-            G_ints = fit_results[12]  #intensities from the fit, not the initial values
-            D_ints = fit_results[13]
-            D2_ints = FitD2On*fit_results[14]
-            D3_ints = FitD3On*fit_results[15]
-            D4_ints = FitD4On*fit_results[16]
-            U1_ints = fit_results[17]
+            
+            D2_ints = FitD2On*D2_ints
+            D3_ints = FitD3On*D3_ints
+            D4_ints = FitD4On*D4_ints
+            
             TotalIntensity = G_ints + D_ints + D2_ints + D3_ints + D4_ints
-           
+                      
+            Residuals = signal_fit - ModelFit
             ss_res = np.sum((Residuals) ** 2)
             ss_tot = np.sum((signal_fit - np.mean(signal_fit)) ** 2)
             R2_fit = 1-ss_res/ss_tot # not meaningful because can't use R2 on Gaussian or Lorentzian fits, so need to use standard error regression
-            SEE_fit = np.sqrt(ss_res/(len(signal_fit)-NumPeaks*3))
+            SEE_fit = sqrt(ss_res/(len(signal_fit)-NumPeaks*3))
             
             # Figure 4 Plot of individual peak fits and total peak fit with experimental
+            
+            ModelFit_nom = np.fromiter((ModelFit[i].n for i in range(len(ModelFit))),float, count = len(ModelFit))
+            ModelFit_unc = np.fromiter((ModelFit[i].s for i in range(len(ModelFit))),float, count = len(ModelFit))
+            Residuals_nom = np.fromiter((Residuals[i].n for i in range(len(ModelFit))),float, count = len(ModelFit))
+    
+            
             fig = plt.figure(4)
             gs4 = fig.add_gridspec(nrows=2, ncols=1,
                       hspace=0, wspace=0, height_ratios=[1, 5])
             ax40 = fig.add_subplot(gs4[1])
             ax40.plot(x_fit, signal_fit,'.k', label = 'Experimental')
-            ax40.plot(x_fit, Gfit,'-g', label = 'G Peak Fit')
-            ax40.plot(x_fit, Dfit,'-b', label = 'D Peak Fit')
+            ax40.plot(x_fit, Gfit_nom,'-g', label = 'G Peak Fit')
+            ax40.plot(x_fit, Dfit_nom,'-b', label = 'D Peak Fit')
             if FitD2On == 1:
-                ax40.plot(x_fit , D2fit,'-y', label = 'D2 Peak Fit')
+                ax40.plot(x_fit , D2fit_nom,'-y', label = 'D2 Peak Fit')
             if FitD3On == 1:
-                ax40.plot(x_fit, D3fit,'-c', label = 'D3 Peak Fit')
+                ax40.plot(x_fit, D3fit_nom,'-c', label = 'D3 Peak Fit')
             if FitD4On == 1:
-                ax40.plot(x_fit , D4fit,'-m', label = 'D4 Peak Fit')
+                ax40.plot(x_fit , D4fit_nom,'-m', label = 'D4 Peak Fit')
             if FitU1On == 1:
-                ax40.plot(x_fit, U1fit, '-y', label = 'U1 peak fit')
-            ax40.plot(x_fit, ModelFit,'-r', label = 'Summed Peak Fit')
+                ax40.plot(x_fit, U1fit_nom, '-y', label = 'U1 peak fit')
+            ax40.plot(x_fit, ModelFit_nom,'-r', label = 'Summed Peak Fit')
+            ax40.fill_between(x_fit, ModelFit_nom - ModelFit_unc, ModelFit_nom + ModelFit_unc,  facecolor='red', alpha = 0.25)
+            # will need to double the ModelFit_unc in fill line for 95% confidence only one stdev now
             ax40.set_xlabel(r'Raman Shift / cm$^{-1}$', fontsize=16)
             plt.autoscale(enable=True, axis='x', tight=True)
             plt.autoscale(enable=True, axis='y')
             plt.setp(ax40, xticks=[1000,1200,1400,1600,1800,2000])
             ax40.set_ylabel('Raman Intensity', fontsize=16)
-            #plt.text(1075, 14100, 'ink', fontsize=20)
             plt.tick_params(axis='both', which='major', labelsize=14)
             
             ax41 = fig.add_subplot(gs4[0])
-            ax41.plot(x_fit,Residuals, '.b')
+            ax41.plot(x_fit,Residuals_nom, '.b')
             ax41.axhline(0, linestyle='--', color = 'gray', linewidth = 1)
             ax41.set_ylabel('Residuals')
             plt.setp(ax41, xticks=[800,1000,1200,1400,1600,1800])
             ax41.tick_params(direction='in',labelbottom=False,labelleft=True)
             plt.autoscale(enable=True, axis='x', tight=True) 
             
-            plt.ylim(min(Residuals)*1.15,max(Residuals)*1.15)
-            #plt.ylim(min(Residuals)*1.15,130)
+            plt.ylim(min(Residuals_nom)*1.15,max(Residuals_nom)*1.15)
             
-            gs4.update(left=0.13,right=0.94,top=0.95,bottom=0.15) #as percentages of total figure with 1,1 in upper right
+            gs4.update(left=0.16,right=0.94,top=0.95,bottom=0.15) #as percentages of total figure with 1,1 in upper right
             fig.set_size_inches(6, 5) #width, height
             plt.savefig(SaveName + '_fit.jpg', dpi=300)
-            #plt.show()
             plt.close()
-                    
-            #  =============================================================================
-            #             # Uncertainty analysis
-            #             G_error = [0]*iterations
-            #             D_error = [0]*iterations
-            #             for i in range(0, iterations):
-            #                 model_error = ModelFit + fit_error*np.random.randn(1)/4*ModelFit
-            #                 G_error[i] =model_error[np.where(x_fit == np.around(fit_results[0],0) )[0][0]]
-            #                 D_error[i] = model_error[np.where(x_fit == np.around(fit_results[1],0) )[0][0]]
-            #             
-            #             G_ints_error =  np.std(G_error) 
-            #             D_ints_error =  np.std(D_error)
-            # =============================================================================
-                
-            #print 'G Band Peak Position: ', fit_results[0]
-            #print 'G Band Peak Width: ', fit_results[2]
-            #print 'G Band Peak Intensity: ', '%.3f' %G_ints#, '+/- ',  '%.3f' %G_ints_error
-            #print 'D Band Peak Position: ', fit_results[1]
-            #print 'D Band Peak Width: ', fit_results[3]
-            #print 'D Band Peak Intensity: ', '%.3f' %D_ints  # , '+/- ',  '%.3f' %D_ints_error 
             
             # ID/IG Ratio
-            Exp_ratio = D_ints/G_ints
-            #Exp_ratio_err = Exp_ratio*((G_ints_error/G_ints)**2 + (D_ints_error/D_ints)**2)**0.5
+            Exp_ratio = D_ints/G_ints #with uncertainties
+            Exp_ratio = fit_results[13]/fit_results[12] # w/o uncertainties calc
             
-            #print 'ID/IG Ratio: ', '%.3f' %Exp_ratio #,'+/- ',  '%.3f' % Exp_ratio_err 
-            #print 'q = ',qBWF
-            #print 'Sum Sq Residuals = ',np.sum(Residuals**2)
+            # Calculation of uncertainties with covariances
             
-            ra = 3.1 # +/- 0.03nm
-            rs = 1.0 #
-            CA = 160*((1240*Ext_Lambda**-1)**-4) # 160 +/- 48
-            CA_min = (160-48)*((1240*Ext_Lambda**-1)**-4)
-            CA_max = (160+48)*((1240*Ext_Lambda**-1)**-4)
-            
-            La_Range = np.arange(0.1, 100, step = 0.001)
-            Model_Ratio = [0]*len(La_Range)
-            Min_Ratio = [0]*len(La_Range)
-            Max_Ratio = [0]*len(La_Range)
-            for i in range(0, len(La_Range)):
-                La = La_Range[i]
-                Model_Ratio[i] =CA*(ra**2 - rs**2)/(ra**2 - 2*(rs**2))*(np.exp((-np.pi*rs**2)/(La**2))-np.exp((-np.pi*(ra**2 - rs**2))/(La**2))) 
-                Min_Ratio[i] =CA_min*(ra**2 - rs**2)/(ra**2 - 2*(rs**2))*(np.exp((-np.pi*rs**2)/(La**2))-np.exp((-np.pi*(ra**2 - rs**2))/(La**2))) 
-                Max_Ratio[i] =CA_max*(ra**2 - rs**2)/(ra**2 - 2*(rs**2))*(np.exp((-np.pi*rs**2)/(La**2))-np.exp((-np.pi*(ra**2 - rs**2))/(La**2)))
-            
-            low = np.where(La_Range <=3)[0]
-            La_low = [0]*len(low)
-            Model_Ratio_low = [0]*len(low)
-            Min_Ratio_low = [0]*len(low)
-            Max_Ratio_low = [0]*len(low)
-            for i in range(0, len(low)):
-                La_low[i] = La_Range[low[i]]
-                Model_Ratio_low[i] = Model_Ratio[low[i]]
-                Min_Ratio_low[i] = Min_Ratio[low[i]]
-                Max_Ratio_low[i] = Max_Ratio[low[i]]  
-            low_La = La_low[np.where(abs(Model_Ratio_low - Exp_ratio) == min(abs(Model_Ratio_low - Exp_ratio)))[0][0]]
-            low_La_min_Ca = La_low[np.where(abs(Min_Ratio_low - Exp_ratio) == min(abs(Min_Ratio_low - Exp_ratio)))[0][0]]
-            low_La_max_Ca = La_low[np.where(abs(Max_Ratio_low - Exp_ratio) == min(abs(Max_Ratio_low - Exp_ratio)))[0][0]]
-            low_La_error_Ca = abs(low_La_min_Ca - low_La_max_Ca)
-            
-            #low_La_min_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_err) ) == min(abs(Model_Ratio_low - (Exp_ratio-Exp_ratio_err))))[0][0]]
-            #low_La_max_ratio = La_low[np.where(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_err)) == min(abs(Model_Ratio_low - (Exp_ratio+Exp_ratio_err))))[0][0]]
-            #low_La_error_ratio = abs(low_La_min_ratio - low_La_max_ratio)
-            #low_La_error = low_La*((low_La_error_ratio/low_La)**2 + (low_La_error_Ca/low_La)**2)**0.5
-            #print 'Conjugation Length (low): ', '%.3f' %low_La,  '+/- ', '%.3f' %low_La_error, 'nm'
-            
-            high = np.where(La_Range >=3)[0]
-            La_high = [0]*len(high)
-            Model_Ratio_high = [0]*len(high)
-            Min_Ratio_high = [0]*len(high)
-            Max_Ratio_high = [0]*len(high)
-            for i in range(0, len(high)):
-                La_high[i] = La_Range[high[i]]
-                Model_Ratio_high[i] = Model_Ratio[high[i]]
-                Min_Ratio_high[i] = Min_Ratio[high[i]]
-                Max_Ratio_high[i] = Max_Ratio[high[i]]  
-            high_La = La_high[np.where(abs(Model_Ratio_high - Exp_ratio) == min(abs(Model_Ratio_high - Exp_ratio)))[0][0]]
-            high_La_min_Ca = La_high[np.where(abs(Min_Ratio_high - Exp_ratio) == min(abs(Min_Ratio_high - Exp_ratio)))[0][0]]
-            high_La_max_Ca = La_high[np.where(abs(Max_Ratio_high - Exp_ratio) == min(abs(Max_Ratio_high - Exp_ratio)))[0][0]]
-            high_La_error_Ca = abs(high_La_min_Ca - high_La_max_Ca)
-            
-            #high_La_min_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_err) ) == min(abs(Model_Ratio_high - (Exp_ratio-Exp_ratio_err))))[0][0]]
-            #high_La_max_ratio = La_high[np.where(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_err)) == min(abs(Model_Ratio_high - (Exp_ratio+Exp_ratio_err))))[0][0]]
-            #high_La_error_ratio = abs(high_La_min_ratio - high_La_max_ratio)
-            #high_La_error = high_La*((high_La_error_ratio/high_La)**2 + (high_La_error_Ca/high_La)**2)**0.5
-            #print 'Conjugation Length (high): ', '%.3f' %high_La,  '+/- ', '%.3f' %high_La_error, 'nm'
+            Exp_ratio_stdev = Exp_ratio*((dFit[12]/fit_results[12])**2 + (dFit[13]/fit_results[13])**2 - 
+                                        (2*(covMatrix[13,12])/fit_results[12]/fit_results[13]))**0.5
+     # =============================================================================
+     #         TotIntstdev = (dFit[12]**2 + dFit[13]**2 + dFit[14]**2 + dFit[15]**2 + dFit[16]**2 + 
+     #                       2*((covMatrix[13,12]) + (covMatrix[13,14]) + 
+     #                           (covMatrix[13,15]) + (covMatrix[13,16]) + 
+     #                           (covMatrix[14,12]) + (covMatrix[14,15]) +
+     #                           (covMatrix[14,16]) + (covMatrix[15,12]) + 
+     #                           (covMatrix[15,16]) + (covMatrix[16,12])))**0.5
+     # =============================================================================
+            IDIG = D_ints/G_ints  #with uncertainties calc
+            ID2IG = D2_ints/G_ints
+            ID3ID = D3_ints/D_ints
+            ID4ID = D4_ints/D_ints
+            IDIT = D_ints/TotalIntensity
+            IGIT = G_ints/TotalIntensity
+            ID2IT = D2_ints/TotalIntensity
+            ID3IT = D3_ints/TotalIntensity
+            ID4IT = D4_ints/TotalIntensity
+             
+             
+     # =============================================================================
+     #         Calculating the conjugation length, La
+     # =============================================================================
+             
+             # from Herdman and Miller 2011, based on Cancado et al. 2011 and Luchhese et al. 2010
+    
+            ra = 3.1 #Cancado has 3.1 nm,  Luchhese has 3.00 +/- 0.03 nm
+            rs = 1.0 # Luchhese has 1.00 +/- 0.04 nm, Cancado also uses 1.0
+            CA_mult = ufloat(160,48)# 160 +/- 48 from Cancado et al.
+            CA = CA_mult*((1240*Ext_Lambda**-1)**-4)  # unitless
+            La_model = np.arange(0.1, 100, step = 0.001)
+            Ratio_model = [0]*len(La_model)
+            Ratio_model =CA*(ra**2 - rs**2)/(ra**2 - 2*(rs**2))*(np.exp((-np.pi*rs**2)/(La_model**2))-np.exp((-np.pi*(ra**2 - rs**2))/(La_model**2))) 
+             
+             # find the La from ID/IG values for the lower part of the curve and the higher part of the curve
+             # no equations from ID/IG for high defect frequency so have to do it the hard way
+                     
+            Ratio_model_low = np.where(La_model <=3, Ratio_model, np.nan)
+            La_low = np.where(La_model <=3, La_model, np.nan)
+            low_La = La_low[np.where(abs(Ratio_model_low - Exp_ratio) == min(abs(Ratio_model_low - Exp_ratio)))[0][0]]
+    
+            Ratio_model_high = np.where(La_model >3, Ratio_model, 100)
+            La_high = np.where(La_model >3, La_model, np.nan)
+            high_La = La_high[np.where(abs(Ratio_model_high - Exp_ratio) == min(abs(Ratio_model_high - Exp_ratio)))[0][0]]
+            high_La = La_high[np.where(abs(Ratio_model_high - Exp_ratio) == min(abs(Ratio_model_high - Exp_ratio)))[0][0]]
+             
+             # when resolving eq from Herdman and Miller for LsubA, if LsubA approaches 1, 
+             # we can neglect second exponential term as it gets very small compared to first term (by e-10)
+             # however for LsubA close to 20, the two terms are close in value, so uncertainty only for low_La
+             
+            low_La_calc = sqrt((-1*np.pi)/(log(((ra**2-2)/(ra**2-1))*(IDIG/CA))))
+            low_label = u'{:.2fP}'.format(low_La_calc)
+
             
             Ratio = [Exp_ratio, Exp_ratio]
-            La = [low_La, high_La]
+            La_calc = [low_La, high_La]
+            
+            if high_La > 8:  #10 via Cancado et al. but with uncertainty...actually okay.
+                high_La_calc = sqrt(1/((IDIG)/CA/(np.pi*(3.1**2-1))))
+                La_calc2 = [low_La_calc.n, high_La_calc.n]
+                high_label = u'{:.2fP}'.format(high_La_calc)
+            else:
+                La_calc2 = [low_La_calc.n, high_La]
+                high_label = '{:.2f}'.format(high_La)
+                high_La_calc = ufloat(high_La, np.nan)
+         
+     # =============================================================================
+            
+
+            
+            Ratio_model_plot = np.fromiter((Ratio_model[i].n for i in range(len(Ratio_model))),float, count = len(Ratio_model))
+            dRatio_model = np.fromiter((Ratio_model[i].s for i in range(len(Ratio_model))),float, count = len(Ratio_model))
+            
             
             fig = plt.figure(3)
             ax = fig.add_subplot(111)
-            ax.plot(La_Range , Model_Ratio,'-k')
-            ax.fill_between(La_Range, Min_Ratio, Max_Ratio,  facecolor='gray', alpha = 0.25)
-            #ax.plot(La , Ratio,'or')
-            ax.loglog(La , Ratio,'or')
-            high_label = '%.3f' %high_La #+ '+/- ' + '%.3f' %high_La_error + 'nm'
-            low_label = '%.3f' %low_La #+ '+/- ' + '%.3f' %low_La_error + 'nm'
-            ax.text(high_La, Exp_ratio, high_label, va="top", ha = "center", size = 10)
-            ax.text(low_La, Exp_ratio, low_label, va="top", ha = "center", size = 10)
-            ax.set_xlabel('La')
-            ax.set_ylabel('ID/IG')
-            #ax.set_xlim(0, 10)
-            #ax.set_ylim(0, 2)
+            ax.plot(La_model , Ratio_model_plot ,'-k')
+            ax.fill_between(La_model, Ratio_model_plot - dRatio_model, Ratio_model_plot + dRatio_model,  facecolor='gray', alpha = 0.25)
+            # will need to double the dRatio_model in fill line for 95% confidence only one stdev now
+            ax.loglog(La_calc2 , Ratio,'or')
+            ax.text(high_La, Exp_ratio, high_label, va="top", ha = "center", size = 10) #offset for legibility
+            ax.text(low_La, Exp_ratio, low_label, va="top", ha = "center", size = 10) #offset for legibility
+            ax.set_xlabel('$L_a$', fontsize=16)
+            ax.set_ylabel('$I_D$ / $I_G$', fontsize=16)
             ax.set_xlim(0.1, 100)
             ax.set_ylim(0.01, 100)
-            plt.savefig(SaveName + '_Ratio.jpg')
+            fig.set_size_inches(6, 5) #width, height
+            plt.savefig(SaveName + '_Ratio.jpg',dpi=300)
             
-            #plt.show()
             plt.close()
             
             
             f = open(SaveName+'_fitfile.txt',"w")
             f.write("{}\t{}\t{}\n".format('Collection Details',CollDet,''))
             f.write("{}\t{}\t{}\n".format('Original File',Loadfile,''))
-            f.write("{}\t{}\t{}\n".format('position',str(n).zfill(2),'0'))            
+            f.write("{}\t{}\t{}\n".format('position',str(n).zfill(2),'0'))
+            f.write("{}\t{}\t{}\n".format('Location', locations[n],''))            
             f.write("{}\t{}\t{}\n".format('Laser Wavelength', Ext_Lambda,'0'))
             f.write("{}\t{}\t{}\n".format('Num Peaks Fit', NumPeaks,'0'))
 
@@ -514,43 +553,43 @@ for file in os.listdir('.'):
             f.write("{}\t{}\t{}\n".format('Baseline R2', BaseR2[0], 0) )
             f.write("{}\t{}\t{}\n".format('Baseline Slope', BaseSlope, 0) )
             
-            f.write("{}\t{}\t{}\n".format('Peak Fit R2?', R2_fit, 0) )
-            f.write("{}\t{}\t{}\n".format('Peak Fit SEE', SEE_fit, 0) )
+            f.write("{}\t{}\t{}\n".format('Peak Fit R2ish', float(R2_fit.n), float(R2_fit.s)) )
+            f.write("{}\t{}\t{}\n".format('Peak Fit SEE', float(SEE_fit.n), float(SEE_fit.s)) )
             
             f.write("{}\t{}\t{}\n".format('qBWF', qBWF, 0) )
             
-            f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], 0) )
-            f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], 0 ))
-            f.write("{}\t{}\t{}\n".format('G Band Peak Intensity', G_ints,0))
+            f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], dFit[0]) )
+            f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], dFit[6] ))
+            f.write("{}\t{}\t{}\n".format('G Band Peak Intensity', fit_results[12],dFit[12]))
             
-            f.write("{}\t{}\t{}\n".format('D Band Peak Position',fit_results[1],0))
-            f.write("{}\t{}\t{}\n".format('D Band Peak Width',fit_results[7],0))
-            f.write("{}\t{}\t{}\n".format('D Band Peak Intensity', D_ints,0))
+            f.write("{}\t{}\t{}\n".format('D Band Peak Position',fit_results[1],dFit[1]))
+            f.write("{}\t{}\t{}\n".format('D Band Peak Width',fit_results[7],dFit[7]))
+            f.write("{}\t{}\t{}\n".format('D Band Peak Intensity', fit_results[13],dFit[13]))
             
-            f.write("{}\t{}\t{}\n".format('D2 Band Peak Position',fit_results[2],0))
-            f.write("{}\t{}\t{}\n".format('D2 Band Peak Width',fit_results[8],0))
-            f.write("{}\t{}\t{}\n".format('D2 Band Peak Intensity', D2_ints,0))
+            f.write("{}\t{}\t{}\n".format('D2 Band Peak Position',fit_results[2],dFit[2]))
+            f.write("{}\t{}\t{}\n".format('D2 Band Peak Width',fit_results[8],dFit[8]))
+            f.write("{}\t{}\t{}\n".format('D2 Band Peak Intensity', fit_results[14],dFit[14]))
             
-            f.write("{}\t{}\t{}\n".format('D3 Band Peak Position',fit_results[3],0))
-            f.write("{}\t{}\t{}\n".format('D3 Band Peak Width',fit_results[9],0))
-            f.write("{}\t{}\t{}\n".format('D3 Band Peak Intensity', D3_ints,0))
+            f.write("{}\t{}\t{}\n".format('D3 Band Peak Position',fit_results[3],dFit[3]))
+            f.write("{}\t{}\t{}\n".format('D3 Band Peak Width',fit_results[9],dFit[9]))
+            f.write("{}\t{}\t{}\n".format('D3 Band Peak Intensity', fit_results[15],dFit[15]))
             
-            f.write("{}\t{}\t{}\n".format('D4 Band Peak Position',fit_results[4],0))
-            f.write("{}\t{}\t{}\n".format('D4 Band Peak Width',fit_results[10],0))
-            f.write("{}\t{}\t{}\n".format('D4 Band Peak Intensity', D4_ints,0))
+            f.write("{}\t{}\t{}\n".format('D4 Band Peak Position',fit_results[4],dFit[4]))
+            f.write("{}\t{}\t{}\n".format('D4 Band Peak Width',fit_results[10],dFit[10]))
+            f.write("{}\t{}\t{}\n".format('D4 Band Peak Intensity', fit_results[16],dFit[16]))
             
-            f.write("{}\t{}\t{}\n".format('Conjugation Length (low)',low_La,0))
-            f.write("{}\t{}\t{}\n".format('Conjugation Length (high)',high_La,0))
-            f.write("{}\t{}\t{}\n".format('ID/IG',Exp_ratio,0))
-    
-            f.write("{}\t{}\t{}\n".format('ID/total ratio', D_ints/TotalIntensity,0))
-            f.write("{}\t{}\t{}\n".format('ID2/total ratio', D2_ints/TotalIntensity,0))
-            f.write("{}\t{}\t{}\n".format('ID3/total ratio', D3_ints/TotalIntensity,0))
-            f.write("{}\t{}\t{}\n".format('ID4/total ratio', D4_ints/TotalIntensity,0))
-            f.write("{}\t{}\t{}\n".format('IG/total ratio',G_ints/TotalIntensity,0))
-            f.write("{}\t{}\t{}\n".format('ID2/IG ratio', D2_ints/G_ints,0))
-            f.write("{}\t{}\t{}\n".format('ID3/ID ratio', D3_ints/D_ints,0))
-            f.write("{}\t{}\t{}\n".format('ID4/ID ratio', D4_ints/D_ints,0))
+            f.write("{}\t{}\t{}\n".format('Conjugation Length (low)',low_La_calc.n,low_La_calc.s))
+            f.write("{}\t{}\t{}\n".format('Conjugation Length (high)',high_La,high_La_calc.s))
+            f.write("{}\t{}\t{}\n".format('ID/IG',Exp_ratio,Exp_ratio_stdev))
+            
+            f.write("{}\t{}\t{}\n".format('ID/total ratio', IDIT.n,IDIT.s))
+            f.write("{}\t{}\t{}\n".format('ID2/total ratio', ID2IT.n,ID2IT.s))
+            f.write("{}\t{}\t{}\n".format('ID3/total ratio', ID3IT.n,ID3IT.s))
+            f.write("{}\t{}\t{}\n".format('ID4/total ratio', ID4IT.n,ID4IT.s))
+            f.write("{}\t{}\t{}\n".format('IG/total ratio',IGIT.n,IGIT.s))
+            f.write("{}\t{}\t{}\n".format('ID2/IG ratio', ID2IG.n,ID2IG.s))
+            f.write("{}\t{}\t{}\n".format('ID3/ID ratio', ID3ID.n,ID3ID.s))
+            f.write("{}\t{}\t{}\n".format('ID4/ID ratio', ID4ID.n,ID4ID.s))
             f.write("{}\t{}\t{}\n".format('bkd_low',bkd_bounds[0],bkd_bounds[1]))
             f.write("{}\t{}\t{}\n".format('bkd_hi',bkd_bounds[2],bkd_bounds[3])) 
             f.close()

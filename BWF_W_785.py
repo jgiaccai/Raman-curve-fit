@@ -4,6 +4,8 @@
 ## 20230408 altered to allow fitting of any number of Lorentzian peaks, defined lines 29-34
 ## 20230522 altered to fit G peak as a BWF with q of -10
 ## 20230524 choose baseline fitting order at top 
+## position and location info to maintain parity with other mapping/queueing systems
+## 20230628 v.3 now with uncertainties!
 
 import sys
 import numpy as np
@@ -36,7 +38,7 @@ FitD3On = 0
 FitD4On = 0
 FitU1On = 0 #unidentified peak but need to include in envelope for 405 etc
 
-fitVersion = 2.0 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
+fitVersion = 3.0 # changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
 
 base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [520, 950, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
@@ -57,7 +59,6 @@ qBWF = -10
 wavefile = "/Users/jennifergiaccai/OneDrive - Smithsonian Institution/PROJECTS/ChineseInkProject/WasatchWavenumRef-20210624-160600-788505-WP-00665.csv"
 
 Ext_Lambda = 000 #nm
-#iterations = 50
 
 TotalNumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On + FitU1On
 NumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On
@@ -67,13 +68,7 @@ FitParam =np.zeros(NumParams)
 lobounds = np.zeros(18)
 hibounds = np.zeros(18)
 
-# lowG = G_bounds[0] - (G_bounds[1]/2)
-# highG = G_bounds[0] + (G_bounds[1]/2)
-# lowD = D_bounds[0] - (D_bounds[1]/2)
-# highD = D_bounds[0] + (D_bounds[1]/2)
-    
-# lowD = 1100
-CollDet = 'NMNH unk det'  #If need to restart, replace with collection details
+CollDet = 'Wasatch unk det'  #If need to restart, replace with collection details
 
 # only need to set peak location and width bounds once, at the beginning of the program  
 # bounds for optimize.curve_fit: an array of lows, an array of highs
@@ -115,8 +110,6 @@ hibounds[17] = 500
 
 bounds = lobounds,hibounds
   
-#print('Bounds are ',bounds)
-
 def ReadCollDetails(inputFilename):
     global CollDet, Ext_Lambda
 
@@ -492,8 +485,19 @@ for file in os.listdir('.'):
         # however for LsubA close to 20, the two terms are close in value, so uncertainty only for low_La
         
         low_La_calc = sqrt((-1*np.pi)/(log(((ra**2-2)/(ra**2-1))*(IDIG/CA))))
+
+        Ratio = [Exp_ratio, Exp_ratio]
+        La_calc = [low_La, high_La]
         
-        high_La_calc = sqrt(1/((IDIG)/CA/(np.pi*(3.1**2-1))))
+        if high_La > 8:  # should be >=10 via Cancado et al. Eq 2 but when taking in mind uncertainty...okay
+            high_La_calc = sqrt(1/((IDIG)/CA/(np.pi*(3.1**2-1))))
+            La_calc2 = [low_La_calc.n, high_La_calc.n]
+            high_label = u'{:.2fP}'.format(high_La_calc)
+        else:
+            La_calc2 = [low_La_calc.n, high_La]
+            high_label = '{:.2f}'.format(high_La)
+            high_La_calc = ufloat(high_La, np.nan)
+
 
         
 # =============================================================================
@@ -528,6 +532,7 @@ for file in os.listdir('.'):
         f = open(SaveName+'_fitfile.txt',"w")
         f.write("{}\t{}\t{}\n".format('Collection Details',CollDet,''))
         f.write("{}\t{}\t{}\n".format('Original File',Loadfile,''))
+        f.write("{}\t{}\t{}\n".format('Location','0','0'))
         f.write("{}\t{}\t{}\n".format('position','0','0'))
         f.write("{}\t{}\t{}\n".format('Laser Wavelength', Ext_Lambda,'0'))
         f.write("{}\t{}\t{}\n".format('Num Peaks Fit', NumPeaks,'0'))

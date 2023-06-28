@@ -17,58 +17,59 @@ for file in os.listdir('.'):
         data = np.genfromtxt(fullFilename, delimiter = '\t', usecols = (1,), skip_header = (2))
         unc= np.genfromtxt(fullFilename, delimiter = '\t', usecols = (2,), skip_header = (2))
 
-        position = data[0]        
-        exc_laser = data[1]
-        num_pks = data[2]
+        position = data[0]
+        location = data[1]        
+        exc_laser = data[2]
+        num_pks = data[3]
         
-        baseline_order = data[3]
-        baseline_r2 = data[4]
-        baseline_flatness = data[5]
+        baseline_order = data[4]
+        baseline_r2 = data[5]
+        baseline_flatness = data[6]
         
-        pkfit_r2 = data[6]
-        pkfit_see = data[7]
+        pkfit_r2 = data[7]
+        pkfit_see = data[8]
         
-        q_BWF = data[8]
+        q_BWF = data[9]
         
-        g_pos = data[9]
-        g_pos_unc = unc[9]
-        g_width = data[10]
-        g_width_unc = unc[10]
-        g_intensity = data[11]
-        g_ints_unc = unc[11]
+        g_pos = data[10]
+        g_pos_unc = unc[10]
+        g_width = data[11]
+        g_width_unc = unc[11]
+        g_intensity = data[12]
+        g_ints_unc = unc[12]
         
-        d_pos = data[12]
-        d_pos_unc = unc[12]
-        d_width = data[13]
-        d_width_unc = unc[13]
-        d_intensity = data[14]
-        d_ints_unc = unc[14]
+        d_pos = data[13]
+        d_pos_unc = unc[13]
+        d_width = data[14]
+        d_width_unc = unc[14]
+        d_intensity = data[15]
+        d_ints_unc = unc[15]
         
-        d2_pos = data[15]
-        d2_pos_unc = unc[15]
-        d2_width = data[16]
-        d2_width_unc = unc[16]
-        d2_intensity = data[17]
-        d2_ints_unc = unc[17]
+        d2_pos = data[16]
+        d2_pos_unc = unc[16]
+        d2_width = data[17]
+        d2_width_unc = unc[17]
+        d2_intensity = data[18]
+        d2_ints_unc = unc[18]
         
-        d3_pos = data[18]
-        d3_pos_unc = unc[18]
-        d3_width = data[19]
-        d3_width_unc = unc[19]
-        d3_intensity = data[20]
-        d3_ints_unc = unc[20]
+        d3_pos = data[19]
+        d3_pos_unc = unc[19]
+        d3_width = data[20]
+        d3_width_unc = unc[20]
+        d3_intensity = data[21]
+        d3_ints_unc = unc[21]
         
-        d4_pos = data[21]
-        d4_pos_unc = unc[21]
-        d4_width = data[22]
-        d4_width_unc = unc[22]
-        d4_intensity = data[23]
-        d4_ints_unc = unc[23]
+        d4_pos = data[22]
+        d4_pos_unc = unc[22]
+        d4_width = data[23]
+        d4_width_unc = unc[23]
+        d4_intensity = data[24]
+        d4_ints_unc = unc[24]
         
-        Lalow_val = data[24]
-        Lalow_unc = unc[24]
-        ID_IG = data[26]
-        ID_IG_unc = unc[26]
+        Lalow_val = data[25]
+        Lalow_unc = unc[25]
+        ID_IG = data[27]
+        ID_IG_unc = unc[27]
         
         scan_info = np.genfromtxt(fullFilename, dtype = str, delimiter = '\t', usecols = (1), skip_footer = (len(data)+1))
 
@@ -77,6 +78,7 @@ for file in os.listdir('.'):
 
         
         tempData.append({'Position': position, 
+            'Location': location,
             'Scan Info': scan_info, 
             'Exc Laser': exc_laser,
             'Num Peaks Fit': num_pks,
@@ -127,7 +129,7 @@ for file in os.listdir('.'):
             'Conj Length (low)': Lalow_val , 
             #'Conj Length unc': La_unc , 
             'ID IG Ratio': ID_IG ,
-            #'ID IG Ratio unc': ID_IG_unc ,
+            'ID IG Ratio unc': ID_IG_unc ,
             'Filename': filename ,
             #'Noise': noise ,
             #'SNR D band': SNRD ,  
