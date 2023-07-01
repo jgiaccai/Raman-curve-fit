@@ -21,6 +21,7 @@ for file in os.listdir('.'):
         location = data[1]        
         exc_laser = data[2]
         num_pks = data[3]
+        fit_version = unc[3]
         
         baseline_order = data[4]
         baseline_r2 = data[5]
@@ -72,7 +73,8 @@ for file in os.listdir('.'):
         ID_IG_unc = unc[27]
         
         scan_info = np.genfromtxt(fullFilename, dtype = str, delimiter = '\t', usecols = (1), skip_footer = (len(data)+1))
-
+        fitting_info = filename.split(sep='_')[-1]
+        
         #########################  
         # to solve concat/append unc.  concat all the bits into individual lists, then after all loops run, concat into a df below
 
@@ -82,6 +84,7 @@ for file in os.listdir('.'):
             'Scan Info': scan_info, 
             'Exc Laser': exc_laser,
             'Num Peaks Fit': num_pks,
+            'Fitting routine': fitting_info + 'v.' +str(fit_version),
             
             'Baseline Order': baseline_order,
             'Baseline Flatness': baseline_flatness, 
@@ -137,6 +140,6 @@ for file in os.listdir('.'):
         
 # this is where concat the individual lists into dataframes will go--outside the loop  
 Data = pd.DataFrame(tempData)          
-Data.to_csv('RamanFit_summary.csv',index=False,header=True)  
+Data.to_csv((fitting_info + 'RamanFit_summary.csv'),index=False,header=True)  
 
 

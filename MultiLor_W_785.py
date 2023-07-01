@@ -61,7 +61,7 @@ Ext_Lambda = 000 #nm
 
 TotalNumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On + FitU1On
 NumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On
-NumPksApp = str(NumPeaks)+'BWF'
+NumPksApp = str(NumPeaks)+'Lor'
 NumParams    = 3*6     #{Number of parameters to fit}
 FitParam =np.zeros(NumParams) 
 lobounds = np.zeros(18)

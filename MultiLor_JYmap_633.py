@@ -3,7 +3,6 @@
 ## 20191002 expanding bounds based on scatter plots
 ## 20201207 getting scan details from metadata
 ## 20230408 altered to allow fitting of any number of Lorentzian peaks, defined lines 29-34
-## 20230522 altered to fit G peak as a BWF with q of -10
 ## 20230524 choose baseline fitting order at top 
 ## 20230628 v.3 now with uncertainties!
 
@@ -42,7 +41,7 @@ FitU1On = 0 #unidentified peak but need to include in envelope for 405 etc
 fitVersion = 3.0 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
 
 base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
-bkd_bounds = [650, 1000, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
+bkd_bounds = [650, 1050, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
 G_bounds = [1590, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
 D_bounds = [1350, 60, 100, 40]
@@ -51,14 +50,14 @@ D3_bounds = [1500, 10, 45, 40]
 D4_bounds = [1225, 10, 60, 40]
 U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in some 405 data
 IIM = 0.8 #Initial intensity multiplier for G and D peaks 
-qBWF = -10
+qBWF = 0
 # =============================================================================
 
 Ext_Lambda = 000 #nm
 
 TotalNumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On + FitU1On
 NumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On
-NumPksApp = str(NumPeaks)+'BWF'
+NumPksApp = str(NumPeaks)+'Lor'
 NumParams    = 3*6     #{Number of parameters to fit}
 FitParam =np.zeros(NumParams) 
 bounds = np.zeros((NumParams,2))
@@ -176,7 +175,7 @@ def EnterData():
     FitParam[16] = (0.4*FitParam[13])
     FitParam[17]  = (0.25*FitParam[12]) 
 
-    Gfit = FitGOn*BWF(FitParam[0],FitParam[6],FitParam[12])
+    Gfit = FitGOn*lorentz(FitParam[0],FitParam[6],FitParam[12])
     Dfit = FitDOn*lorentz(FitParam[1],FitParam[7],FitParam[13])
     D2fit = FitD2On*lorentz(FitParam[2],FitParam[8],FitParam[14])
     D3fit = FitD3On*lorentz(FitParam[3],FitParam[9],FitParam[15])
@@ -234,7 +233,7 @@ def FitFunc(x_fit, *EvalSimp):
     (3) Subtract total peak fit from real data for initial residuals
     '''
     
-    Gfit = FitGOn*BWF(EvalSimp[0],EvalSimp[6],EvalSimp[12])
+    Gfit = FitGOn*lorentz(EvalSimp[0],EvalSimp[6],EvalSimp[12])
     Dfit = FitDOn*lorentz(EvalSimp[1],EvalSimp[7],EvalSimp[13])
     D2fit = FitD2On*lorentz(EvalSimp[2],EvalSimp[8],EvalSimp[14])
     D3fit = FitD3On*lorentz(EvalSimp[3],EvalSimp[9],EvalSimp[15])
@@ -362,34 +361,18 @@ for file in os.listdir('.'):
                 fit_results = np.zeros(NumParams)
                 continue
             
-            #setting fit results to zero if peak is off
-            
-            if FitGOn == 0:
-                fit_results[0],fit_results[6],fit_results[12] = 0,1,0
-            if FitDOn == 0:
-                fit_results[1],fit_results[7],fit_results[13] = 0,1,0
-            if FitD2On == 0:
-                fit_results[2],fit_results[8],fit_results[14] = 0,1,0
-            if FitD3On == 0:
-                fit_results[3],fit_results[9],fit_results[15] = 0,1,0
-            if FitD4On == 0:
-                fit_results[4],fit_results[10],fit_results[16] = 0,1,0
-            if FitU1On == 0:
-                fit_results[5],fit_results[11],fit_results[17] = 0,1,0
-            
-            
             # setting intensities using uncertainties library
             (Gloc, Dloc, D2loc, D3loc, D4loc, U1loc, Gwid, Dwid, D2wid, D3wid, D4wid, U1wid, 
                  G_ints, D_ints, D2_ints, D3_ints, D4_ints, U1_ints) = uncertainties.correlated_values(fit_results, covMatrix)
             
-            Gfit_nom = FitGOn*BWF(fit_results[0],fit_results[6],fit_results[12])
+            Gfit_nom = FitGOn*lorentz(fit_results[0],fit_results[6],fit_results[12])
             Dfit_nom = FitDOn*lorentz(fit_results[1],fit_results[7],fit_results[13])
             D2fit_nom = FitD2On*lorentz(fit_results[2],fit_results[8],fit_results[14])
             D3fit_nom = FitD3On*lorentz(fit_results[3],fit_results[9],fit_results[15])
             D4fit_nom = FitD4On*lorentz(fit_results[4],fit_results[10],fit_results[16])
             U1fit_nom = FitU1On*lorentz(fit_results[5],fit_results[11],fit_results[17])
             
-            Gfit = FitGOn*BWF(Gloc,Gwid,G_ints)
+            Gfit = FitGOn*lorentz(Gloc,Gwid,G_ints)
             Dfit = FitDOn*lorentz(Dloc,Dwid,D_ints)
             D2fit = FitD2On*lorentz(D2loc,D2wid,D2_ints)
             D3fit = FitD3On*lorentz(D3loc,D3wid,D3_ints)

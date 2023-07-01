@@ -347,6 +347,21 @@ for file in os.listdir('.'):
             fit_results = np.zeros(NumParams)
             continue
         
+        #setting fit results to zero if peak is off
+        
+        if FitGOn == 0:
+            fit_results[0],fit_results[6],fit_results[12] = 0,1,0
+        if FitDOn == 0:
+            fit_results[1],fit_results[7],fit_results[13] = 0,1,0
+        if FitD2On == 0:
+            fit_results[2],fit_results[8],fit_results[14] = 0,1,0
+        if FitD3On == 0:
+            fit_results[3],fit_results[9],fit_results[15] = 0,1,0
+        if FitD4On == 0:
+            fit_results[4],fit_results[10],fit_results[16] = 0,1,0
+        if FitU1On == 0:
+            fit_results[5],fit_results[11],fit_results[17] = 0,1,0
+        
         # setting intensities using uncertainties library
         (Gloc, Dloc, D2loc, D3loc, D4loc, U1loc, Gwid, Dwid, D2wid, D3wid, D4wid, U1wid, 
              G_ints, D_ints, D2_ints, D3_ints, D4_ints, U1_ints) = uncertainties.correlated_values(fit_results, covMatrix)
@@ -535,7 +550,7 @@ for file in os.listdir('.'):
         f.write("{}\t{}\t{}\n".format('Location','0','0'))
         f.write("{}\t{}\t{}\n".format('position','0','0'))
         f.write("{}\t{}\t{}\n".format('Laser Wavelength', Ext_Lambda,'0'))
-        f.write("{}\t{}\t{}\n".format('Num Peaks Fit', NumPeaks,'0'))
+        f.write("{}\t{}\t{}\n".format('Num Peaks Fit and fit version', NumPeaks,fitVersion))
 
         f.write("{}\t{}\t{}\n".format('Baseline Order', base_order, 0) )            
         f.write("{}\t{}\t{}\n".format('Baseline R2', BaseR2[0], 0) )
