@@ -33,9 +33,9 @@ from uncertainties.umath import sqrt,exp,log
 # 
 FitGOn = 1 # 1 is yes, 0 is no
 FitDOn = 1
-FitD2On = 0
-FitD3On = 0
-FitD4On = 0
+FitD2On = 1
+FitD3On = 1
+FitD4On = 1
 FitU1On = 0 #unidentified peak but need to include in envelope for 405 etc
 
 fitVersion = 3.0 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
@@ -43,10 +43,10 @@ fitVersion = 3.0 #changing if there is a change to base fitting subtr or peak fi
 base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [650, 1050, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
-G_bounds = [1590, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
-D_bounds = [1350, 60, 100, 40]
+G_bounds = [1595, 50, 35, 30] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
+D_bounds = [1330, 60, 100, 40]
 D2_bounds = [1620, 10, 20, 10]
-D3_bounds = [1500, 10, 45, 40]
+D3_bounds = [1495, 15, 55, 40]
 D4_bounds = [1225, 10, 60, 40]
 U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in some 405 data
 IIM = 0.8 #Initial intensity multiplier for G and D peaks 
@@ -147,6 +147,11 @@ def BWF(xc,w,I):
     global qBWF,x_fit
     s = ((x_fit - xc)/w)
     return (I)*((1+s/qBWF)**2/(1+s**2))
+
+def Gaussian(xc,w,I):
+    global x_fit
+    s = ((x_fit - xc)/w)
+    return (I)*exp(-1*log(2)*s**2)
 
 def EnterData():
     
@@ -349,17 +354,32 @@ for file in os.listdir('.'):
             
             EnterData()
             #print 'FitParam ', FitParam
-            minres = curve_fit(FitFunc,x_fit,signal_fit,p0=FitParam,method = 'trf', bounds=bounds, full_output=True) 
-            if minres[4] > 1 and minres[4] < 4:
+            try:
+                minres = curve_fit(FitFunc,x_fit,signal_fit,p0=FitParam,method = 'trf', bounds=bounds, full_output=True) 
+            except RuntimeError as error:  #if fit is unsuccessful
+                    print("No fit found")
+                    print(error)
+                    fit_results = np.zeros(NumParams)  #shouldn't need this, but just in case, not passing bad fit data
+                    continue
+            else:  #if fit is successful
                 fit_results=minres[0]
                 covMatrix = minres[1] 
                 dFit = np.sqrt(np.diag(covMatrix))
-                #print(fit_results)
-                #iterations = minres.nfev # I think? not sure 
-            else:
-                print(minres[3])
-                fit_results = np.zeros(NumParams)
-                continue
+            
+            #setting fit results to zero if peak is off
+            
+            if FitGOn == 0:
+                fit_results[0],fit_results[6],fit_results[12] = 0,1,0
+            if FitDOn == 0:
+                fit_results[1],fit_results[7],fit_results[13] = 0,1,0
+            if FitD2On == 0:
+                fit_results[2],fit_results[8],fit_results[14] = 0,1,0
+            if FitD3On == 0:
+                fit_results[3],fit_results[9],fit_results[15] = 0,1,0
+            if FitD4On == 0:
+                fit_results[4],fit_results[10],fit_results[16] = 0,1,0
+            if FitU1On == 0:
+                fit_results[5],fit_results[11],fit_results[17] = 0,1,0
             
             # setting intensities using uncertainties library
             (Gloc, Dloc, D2loc, D3loc, D4loc, U1loc, Gwid, Dwid, D2wid, D3wid, D4wid, U1wid, 
@@ -522,22 +542,22 @@ for file in os.listdir('.'):
             dRatio_model = np.fromiter((Ratio_model[i].s for i in range(len(Ratio_model))),float, count = len(Ratio_model))
             
             
-            fig = plt.figure(3)
-            ax = fig.add_subplot(111)
-            ax.plot(La_model , Ratio_model_plot ,'-k')
-            ax.fill_between(La_model, Ratio_model_plot - dRatio_model, Ratio_model_plot + dRatio_model,  facecolor='gray', alpha = 0.25)
-            # will need to double the dRatio_model in fill line for 95% confidence only one stdev now
-            ax.loglog(La_calc2 , Ratio,'or')
-            ax.text(high_La, Exp_ratio, high_label, va="top", ha = "center", size = 10) #offset for legibility
-            ax.text(low_La, Exp_ratio, low_label, va="top", ha = "center", size = 10) #offset for legibility
-            ax.set_xlabel('$L_a$', fontsize=16)
-            ax.set_ylabel('$I_D$ / $I_G$', fontsize=16)
-            ax.set_xlim(0.1, 100)
-            ax.set_ylim(0.01, 100)
-            fig.set_size_inches(6, 5) #width, height
-            plt.savefig(SaveName + '_Ratio.jpg',dpi=300)
+            # fig = plt.figure(3)
+            # ax = fig.add_subplot(111)
+            # ax.plot(La_model , Ratio_model_plot ,'-k')
+            # ax.fill_between(La_model, Ratio_model_plot - dRatio_model, Ratio_model_plot + dRatio_model,  facecolor='gray', alpha = 0.25)
+            # # will need to double the dRatio_model in fill line for 95% confidence only one stdev now
+            # ax.loglog(La_calc2 , Ratio,'or')
+            # ax.text(high_La, Exp_ratio, high_label, va="top", ha = "center", size = 10) #offset for legibility
+            # ax.text(low_La, Exp_ratio, low_label, va="top", ha = "center", size = 10) #offset for legibility
+            # ax.set_xlabel('$L_a$', fontsize=16)
+            # ax.set_ylabel('$I_D$ / $I_G$', fontsize=16)
+            # ax.set_xlim(0.1, 100)
+            # ax.set_ylim(0.01, 100)
+            # fig.set_size_inches(6, 5) #width, height
+            # plt.savefig(SaveName + '_Ratio.jpg',dpi=300)
             
-            plt.close()
+            # plt.close()
             
             
             f = open(SaveName+'_fitfile.txt',"w")
