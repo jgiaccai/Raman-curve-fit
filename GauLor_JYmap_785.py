@@ -5,6 +5,7 @@
 ## 20230408 altered to allow fitting of any number of Lorentzian peaks, defined lines 29-34
 ## 20230524 choose baseline fitting order at top 
 ## 20230628 v.3 now with uncertainties!
+## 202308 mixing Gaussian and Lorentzian peak fits
 ## 20230919 using adjusted R2 instead of R2 for baseline and signal fits
 
 
@@ -26,7 +27,10 @@ import pandas as pd  #needed to read JY data
 import linecache
 import uncertainties
 from uncertainties import ufloat
-from uncertainties.umath import sqrt,exp,log
+from uncertainties import unumpy
+from uncertainties.umath import sqrt as usqrt
+from uncertainties.umath import exp as uexp
+from uncertainties.umath import log as ulog
 
 # File Parameters
 # =============================================================================
@@ -34,20 +38,20 @@ from uncertainties.umath import sqrt,exp,log
 # 
 FitGOn = 1 # 1 is yes, 0 is no
 FitDOn = 1
-FitD2On = 1
+FitD2On = 0
 FitD3On = 1
-FitD4On = 1
-FitU1On = 1 #unidentified peak but need to include in envelope for 405 etc
+FitD4On = 0
+FitU1On = 0 #unidentified peak but need to include in envelope for 405 etc
 
 fitVersion = 3.01 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
 
 base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
-bkd_bounds = [965, 1135, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
+bkd_bounds = [650, 1000, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
-G_bounds = [1590, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
-D_bounds = [1350, 60, 100, 40]
+G_bounds = [1590, 50, 40, 35] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
+D_bounds = [1320, 60, 110, 40]
 D2_bounds = [1620, 10, 20, 10]
-D3_bounds = [1500, 10, 45, 40]
+D3_bounds = [1500, 15, 55, 50]
 D4_bounds = [1225, 10, 60, 40]
 U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in some 405 data
 IIM = 0.8 #Initial intensity multiplier for G and D peaks 
@@ -58,7 +62,7 @@ Ext_Lambda = 000 #nm
 
 TotalNumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On + FitU1On
 NumPeaks = FitGOn + FitDOn + FitD2On + FitD3On + FitD4On
-NumPksApp = str(NumPeaks)+'Lor'
+NumPksApp = str(NumPeaks)+'GnL'
 NumParams    = 3*6     #{Number of parameters to fit}
 FitParam =np.zeros(NumParams) 
 bounds = np.zeros((NumParams,2))
@@ -152,7 +156,12 @@ def BWF(xc,w,I):
 def Gaussian(xc,w,I):
     global x_fit
     s = ((x_fit - xc)/w)
-    return (I)*exp(-1*log(2)*s**2) 
+    return (I)*np.exp((-1*np.log(2)*s**2))
+
+def GaussianWithUnc(xc,w,I):
+    global x_fit
+    s = ((x_fit - xc)/w)
+    return (I)*unumpy.exp((-1*np.log(2)*s**2))
 
 def EnterData():
     
@@ -181,12 +190,12 @@ def EnterData():
     FitParam[16] = (0.4*FitParam[13])
     FitParam[17]  = (0.25*FitParam[12]) 
 
-    Gfit = FitGOn*lorentz(FitParam[0],FitParam[6],FitParam[12])
+    Gfit = FitGOn*Gaussian(FitParam[0],FitParam[6],FitParam[12])
     Dfit = FitDOn*lorentz(FitParam[1],FitParam[7],FitParam[13])
-    D2fit = FitD2On*lorentz(FitParam[2],FitParam[8],FitParam[14])
-    D3fit = FitD3On*lorentz(FitParam[3],FitParam[9],FitParam[15])
-    D4fit = FitD4On*lorentz(FitParam[4],FitParam[10],FitParam[16])
-    U1fit = FitU1On*lorentz(FitParam[5],FitParam[11],FitParam[17])
+    D2fit = FitD2On*Gaussian(FitParam[2],FitParam[8],FitParam[14])
+    D3fit = FitD3On*Gaussian(FitParam[3],FitParam[9],FitParam[15])
+    D4fit = FitD4On*Gaussian(FitParam[4],FitParam[10],FitParam[16])
+    U1fit = FitU1On*Gaussian(FitParam[5],FitParam[11],FitParam[17])
 
     ModelFit = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit    
     
@@ -229,32 +238,34 @@ def EnterData():
     
     
 def FitFunc(x_fit, *EvalSimp):   
-    #global NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds
-    #global signal_fit, Residuals
     
-    '''
-    Need to 
-    (1) evaluate Lorentzian for each peak
-    (2) Add all peak fits together for total peak fit
-    (3) Subtract total peak fit from real data for initial residuals
-    '''
     
-    Gfit = FitGOn*lorentz(EvalSimp[0],EvalSimp[6],EvalSimp[12])
+    Gfit = FitGOn*Gaussian(EvalSimp[0],EvalSimp[6],EvalSimp[12])
     Dfit = FitDOn*lorentz(EvalSimp[1],EvalSimp[7],EvalSimp[13])
-    D2fit = FitD2On*lorentz(EvalSimp[2],EvalSimp[8],EvalSimp[14])
-    D3fit = FitD3On*lorentz(EvalSimp[3],EvalSimp[9],EvalSimp[15])
-    D4fit = FitD4On*lorentz(EvalSimp[4],EvalSimp[10],EvalSimp[16])
-    U1fit = FitU1On*lorentz(EvalSimp[5], EvalSimp[11], EvalSimp[17])
+    D2fit = FitD2On*Gaussian(EvalSimp[2],EvalSimp[8],EvalSimp[14])
+    D3fit = FitD3On*Gaussian(EvalSimp[3],EvalSimp[9],EvalSimp[15])
+    D4fit = FitD4On*Gaussian(EvalSimp[4],EvalSimp[10],EvalSimp[16])
+    U1fit = FitU1On*Gaussian(EvalSimp[5], EvalSimp[11], EvalSimp[17])
 
     
     FitY = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit
-    
-    #Residuals = (signal_fit - EvalFit)
-    #ErrorSum = np.sum((Residuals)**2)  #fitting routine minimizes sum of square of residuals
-    
+        
     return(FitY)
 
+def FitFuncWithUnc(x_fit, *EvalSimp):   
+    
+    
+    Gfit = FitGOn*GaussianWithUnc(EvalSimp[0],EvalSimp[6],EvalSimp[12])
+    Dfit = FitDOn*lorentz(EvalSimp[1],EvalSimp[7],EvalSimp[13])
+    D2fit = FitD2On*GaussianWithUnc(EvalSimp[2],EvalSimp[8],EvalSimp[14])
+    D3fit = FitD3On*GaussianWithUnc(EvalSimp[3],EvalSimp[9],EvalSimp[15])
+    D4fit = FitD4On*GaussianWithUnc(EvalSimp[4],EvalSimp[10],EvalSimp[16])
+    U1fit = FitU1On*GaussianWithUnc(EvalSimp[5], EvalSimp[11], EvalSimp[17])
 
+    
+    FitY = Gfit + Dfit + D2fit + D3fit + D4fit + U1fit
+        
+    return(FitY)
 
 
 for file in os.listdir('.'):
@@ -388,19 +399,19 @@ for file in os.listdir('.'):
             (Gloc, Dloc, D2loc, D3loc, D4loc, U1loc, Gwid, Dwid, D2wid, D3wid, D4wid, U1wid, 
                  G_ints, D_ints, D2_ints, D3_ints, D4_ints, U1_ints) = uncertainties.correlated_values(fit_results, covMatrix)
             
-            Gfit_nom = FitGOn*lorentz(fit_results[0],fit_results[6],fit_results[12])
+            Gfit_nom = FitGOn*Gaussian(fit_results[0],fit_results[6],fit_results[12])
             Dfit_nom = FitDOn*lorentz(fit_results[1],fit_results[7],fit_results[13])
-            D2fit_nom = FitD2On*lorentz(fit_results[2],fit_results[8],fit_results[14])
-            D3fit_nom = FitD3On*lorentz(fit_results[3],fit_results[9],fit_results[15])
-            D4fit_nom = FitD4On*lorentz(fit_results[4],fit_results[10],fit_results[16])
-            U1fit_nom = FitU1On*lorentz(fit_results[5],fit_results[11],fit_results[17])
+            D2fit_nom = FitD2On*Gaussian(fit_results[2],fit_results[8],fit_results[14])
+            D3fit_nom = FitD3On*Gaussian(fit_results[3],fit_results[9],fit_results[15])
+            D4fit_nom = FitD4On*Gaussian(fit_results[4],fit_results[10],fit_results[16])
+            U1fit_nom = FitU1On*Gaussian(fit_results[5],fit_results[11],fit_results[17])
             
-            Gfit = FitGOn*lorentz(Gloc,Gwid,G_ints)
+            Gfit = FitGOn*GaussianWithUnc(Gloc,Gwid,G_ints)
             Dfit = FitDOn*lorentz(Dloc,Dwid,D_ints)
-            D2fit = FitD2On*lorentz(D2loc,D2wid,D2_ints)
-            D3fit = FitD3On*lorentz(D3loc,D3wid,D3_ints)
-            D4fit = FitD4On*lorentz(D4loc,D4wid,D4_ints)
-            U1fit = FitU1On*lorentz(U1loc,U1wid,U1_ints)
+            D2fit = FitD2On*GaussianWithUnc(D2loc,D2wid,D2_ints)
+            D3fit = FitD3On*GaussianWithUnc(D3loc,D3wid,D3_ints)
+            D4fit = FitD4On*GaussianWithUnc(D4loc,D4wid,D4_ints)
+            U1fit = FitU1On*GaussianWithUnc(U1loc,U1wid,U1_ints)
     
             ModelFit = Gfit + Dfit +D2fit + D3fit + D4fit + U1fit
             
@@ -416,7 +427,7 @@ for file in os.listdir('.'):
             ss_tot = np.sum((signal_fit - np.mean(signal_fit)) ** 2)
             R2_fit = 1-ss_res/ss_tot # not meaningful because can't use R2 on Gaussian or Lorentzian fits, so need to use standard error regression
             AdjR2_fit = 1-(1-R2_fit)*(len(ModelFit)-1)/((len(ModelFit))-(NumParams)-1) # wiki definition, adjusted to account for no. variables but still non-linear so ish?
-            SEE_fit = sqrt(ss_res/(len(signal_fit)-NumPeaks*3))
+            SEE_fit = usqrt(ss_res/(len(signal_fit)-NumPeaks*3))
             
             # Figure 4 Plot of individual peak fits and total peak fit with experimental
             
@@ -521,7 +532,7 @@ for file in os.listdir('.'):
              # we can neglect second exponential term as it gets very small compared to first term (by e-10)
              # however for LsubA close to 20, the two terms are close in value, so uncertainty only for low_La
              
-            low_La_calc = sqrt((-1*np.pi)/(log(((ra**2-2)/(ra**2-1))*(IDIG/CA))))
+            low_La_calc = usqrt((-1*np.pi)/(ulog(((ra**2-2)/(ra**2-1))*(IDIG/CA))))
             low_label = u'{:.2fP}'.format(low_La_calc)
 
             
@@ -529,7 +540,7 @@ for file in os.listdir('.'):
             La_calc = [low_La, high_La]
             
             if high_La > 8:  #10 via Cancado et al. but with uncertainty...actually okay.
-                high_La_calc = sqrt(1/((IDIG)/CA/(np.pi*(3.1**2-1))))
+                high_La_calc = usqrt(1/((IDIG)/CA/(np.pi*(3.1**2-1))))
                 La_calc2 = [low_La_calc.n, high_La_calc.n]
                 high_label = u'{:.2fP}'.format(high_La_calc)
             else:
@@ -569,7 +580,7 @@ for file in os.listdir('.'):
             f.write("{}\t{}\t{}\n".format('position',str(n).zfill(2),'0'))
             f.write("{}\t{}\t{}\n".format('Location', locations[n],''))            
             f.write("{}\t{}\t{}\n".format('Laser Wavelength', Ext_Lambda,'0'))
-            f.write("{}\t{}\t{}\n".format('Num Peaks Fit and fit version', NumPeaks,fitVersion))
+            f.write("{}\t{}\t{}\n".format('Num Peaks and fit version', NumPeaks,fitVersion))
 
             f.write("{}\t{}\t{}\n".format('Baseline Order', base_order, 0) )            
             f.write("{}\t{}\t{}\n".format('Baseline R2', AdjBaseR2[0], 0) )

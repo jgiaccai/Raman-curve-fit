@@ -5,6 +5,7 @@
 ## 20230408 altered to allow fitting of any number of Lorentzian peaks, defined lines 29-34
 ## 20230524 choose baseline fitting order at top 
 ## 20230628 v.3 now with uncertainties!
+## 20230919 using adjusted R2 instead of R2 for baseline and signal fits
 
 
 import sys
@@ -38,7 +39,7 @@ FitD3On = 1
 FitD4On = 1
 FitU1On = 0 #unidentified peak but need to include in envelope for 405 etc
 
-fitVersion = 3.0 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
+fitVersion = 3.01 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
 
 base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [650, 1050, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
@@ -299,6 +300,8 @@ for file in os.listdir('.'):
             baseline_bkgarea = poly.polyval(bkg_x, BasePara)
             BaseTSS = ((bkg_signal - np.mean(bkg_signal))**2).sum()
             BaseR2= 1-(BaseRegrStat[0]/BaseTSS) #should work regardless of order of fit
+            AdjBaseR2 = 1-(1-BaseR2)*(len(baseline_bkgarea)-1)/((len(baseline_bkgarea))-(base_order+1)-1) #wiki definition independent of baseline order fit
+
             # calculate rise/run for fitted baseline immediately before and after the peak region.
             BaseRise = poly.polyval(bkd_bounds[2], BasePara) - poly.polyval(bkd_bounds[1], BasePara)
             BaseRun = bkd_bounds[2]-bkd_bounds[1]
@@ -412,6 +415,7 @@ for file in os.listdir('.'):
             ss_res = np.sum((Residuals) ** 2)
             ss_tot = np.sum((signal_fit - np.mean(signal_fit)) ** 2)
             R2_fit = 1-ss_res/ss_tot # not meaningful because can't use R2 on Gaussian or Lorentzian fits, so need to use standard error regression
+            AdjR2_fit = 1-(1-R2_fit)*(len(ModelFit)-1)/((len(ModelFit))-(NumParams)-1) # wiki definition, adjusted to account for no. variables but still non-linear so ish?
             SEE_fit = sqrt(ss_res/(len(signal_fit)-NumPeaks*3))
             
             # Figure 4 Plot of individual peak fits and total peak fit with experimental
@@ -438,7 +442,6 @@ for file in os.listdir('.'):
                 ax40.plot(x_fit, U1fit_nom, '-y', label = 'U1 peak fit')
             ax40.plot(x_fit, ModelFit_nom,'-r', label = 'Summed Peak Fit')
             ax40.fill_between(x_fit, ModelFit_nom - ModelFit_unc, ModelFit_nom + ModelFit_unc,  facecolor='red', alpha = 0.25)
-            # will need to double the ModelFit_unc in fill line for 95% confidence only one stdev now
             ax40.set_xlabel(r'Raman Shift / cm$^{-1}$', fontsize=16)
             plt.autoscale(enable=True, axis='x', tight=True)
             plt.autoscale(enable=True, axis='y')
@@ -569,10 +572,10 @@ for file in os.listdir('.'):
             f.write("{}\t{}\t{}\n".format('Num Peaks Fit and fit version', NumPeaks,fitVersion))
 
             f.write("{}\t{}\t{}\n".format('Baseline Order', base_order, 0) )            
-            f.write("{}\t{}\t{}\n".format('Baseline R2', BaseR2[0], 0) )
+            f.write("{}\t{}\t{}\n".format('Baseline R2', AdjBaseR2[0], 0) )
             f.write("{}\t{}\t{}\n".format('Baseline Slope', BaseSlope, 0) )
             
-            f.write("{}\t{}\t{}\n".format('Peak Fit R2ish', float(R2_fit.n), float(R2_fit.s)) )
+            f.write("{}\t{}\t{}\n".format('Peak Fit R2ish', float(AdjR2_fit.n), float(AdjR2_fit.s)) )
             f.write("{}\t{}\t{}\n".format('Peak Fit SEE', float(SEE_fit.n), float(SEE_fit.s)) )
             
             f.write("{}\t{}\t{}\n".format('qBWF', qBWF, 0) )

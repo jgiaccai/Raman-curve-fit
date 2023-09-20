@@ -1,9 +1,17 @@
+# 202309 automatically produces a correlation plot colored according to average laser color
+#        automatically drops any fit with a peak fit R2 less than 0.7 (can be set at top)
+
 import os
 import fnmatch
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+plt.style.use('default')
+plt.rcParams.update({'font.family': 'Times New Roman'})
+plt.rcParams.update({'font.size': 20})
 
-
+DropR2 = 0.7
 tempData = []
 
 
@@ -29,6 +37,10 @@ for file in os.listdir('.'):
         
         pkfit_r2 = data[7]
         pkfit_see = data[8]
+        
+        if pkfit_r2 < DropR2:
+            continue
+
         
         q_BWF = data[9]
         
@@ -105,18 +117,20 @@ for file in os.listdir('.'):
         tempData.append({'Position': position, 
             'Location': location,
             'Scan Info': scan_info, 
-            'Exc Laser': exc_laser,
+            'Exc Laser': exc_laser, #in nm
+            'Exc Energy': 299792458 * 6.6261e-34 /exc_laser/1e-9/1.602176565E-19, # in eV
             'Num Peaks Fit': num_pks,
             'Fitting routine': fitting_info + 'v.' +str(fit_version),
             
             'Baseline Order': baseline_order,
+            'Baseline Adj R2': baseline_r2,
             'Baseline Flatness': baseline_flatness, 
             'low bkg': str(lowbkg_st) + '-' + str(lowbkg_end),
             'hi_bkg': str(hibkg_st) + '-' + str(hibkg_end),
             
-            'PkFit R2': pkfit_r2, 
+            'PkFit Adj R2': pkfit_r2, 
             'PkFit SEE %D': pkfit_see/d_intensity, 
-            
+                        
             'qBWF': q_BWF, 
             
             'G Peak Position': g_pos, 
@@ -186,4 +200,45 @@ for file in os.listdir('.'):
 Data = pd.DataFrame(tempData)          
 Data.to_csv((fitting_info + 'RamanFit_summary.csv'),index=False,header=True)  
 
+# Let's create a correlation plot
+if num_pks.max() == 2:
+    IndVar = Data[['D Peak Position','D Peak Width','G Peak Position','G Peak Width','ID IG Ratio']]
+elif num_pks.max() == 3:
+    IndVar = Data[['D Peak Position','D Peak Width','G Peak Position','G Peak Width',
+                   'ID IG Ratio', 'D3 Peak Position','D3 Peak Width', 'ID3 ID Ratio']]
+elif num_pks.max() == 4:
+    #print('found 4 loop')
+    IndVar = Data[['D Peak Position','D Peak Width','G Peak Position','G Peak Width',
+                   'ID IG Ratio', 'D3 Peak Position','D3 Peak Width',  
+                   'D4 Peak Position','D4 Peak Width']]
+else:
+    IndVar = Data[['D Peak Position','D Peak Width','G Peak Position','G Peak Width',
+                   'ID IG Ratio', 'D3 Peak Position','D3 Peak Width', 
+                   'D4 Peak Position','D4 Peak Width', 'D2 Peak Position',
+                   'D2 Peak Width']]
 
+if exc_laser.mean() < 500:
+    lasercolor = 'blue'
+elif exc_laser.mean() <600:
+    lasercolor = 'green'
+elif exc_laser.mean() < 650:
+    lasercolor = 'orange'
+elif exc_laser.mean() < 800:
+    lasercolor = 'red'
+else:
+    lasercolor = 'black'
+
+plottitle = fitting_info + ' ' + str(round(exc_laser.mean())) + 'nm'
+savename = 'PRUNEDcorr_' + fitting_info + '_' + str(round(exc_laser.mean())) + '.jpg'
+
+g = sns.PairGrid(IndVar, diag_sharey=False)
+print('step 1')
+g.map_lower(sns.scatterplot, alpha=0.5, color = lasercolor)
+print('step 2')
+g.map_upper(sns.kdeplot, alpha=0.5, color = lasercolor)
+print('step 3')
+g.map_diag(sns.kdeplot, color = lasercolor)
+print('step 4')
+g.fig.suptitle(plottitle)
+g.fig.subplots_adjust(top=.95)
+g.savefig(savename)
