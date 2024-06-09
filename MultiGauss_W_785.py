@@ -6,7 +6,9 @@
 ## position and location info to maintain parity with other mapping/queueing systems
 ## 20230628 v.3 now with uncertainties!
 ## 20230919 using adjusted R2 instead of R2 for baseline and signal fits
-s
+## 20231210 add in correlation matrix for individual fits and avgCorr calc
+
+
 import sys
 import numpy as np
 from scipy.optimize import curve_fit
@@ -36,7 +38,7 @@ from uncertainties.umath import log as ulog
 # 
 FitGOn = 1 # 1 is yes, 0 is no
 FitDOn = 1
-FitD2On = 0
+FitD2On = 1
 FitD3On = 1
 FitD4On = 1
 FitU1On = 0 #unidentified peak but need to include in envelope for 405 etc
@@ -48,9 +50,9 @@ bkd_bounds = [520, 950, 1750, 2000] #low wavelength limits (low, high) and high 
 
 G_bounds = [1590, 50, 40, 35] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
 D_bounds = [1310, 60, 100, 60]
-D2_bounds = [1620, 10, 20, 10]
-D3_bounds = [1500, 15, 55, 50]
-D4_bounds = [1200, 10, 60, 40]
+D2_bounds = [1630, 50, 30, 25]
+D3_bounds = [1470, 80, 85, 80]
+D4_bounds = [1180, 90, 80, 75]
 U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in some 405 data
 IIM = 0.8 #Initial intensity multiplier for G and D peaks 
 qBWF = -10
@@ -188,27 +190,27 @@ def EnterData():
     
     # # figure with initial fit of various peaks
     
-    # fig = plt.figure(5)
-    # ax50 = fig.add_subplot(111)
-    # ax50.plot(x_fit, signal_fit,'.k', label = 'Experimental')
-    # ax50.plot(x_fit, Gfit,'-g', label = 'G Peak Fit')
-    # ax50.plot(x_fit, Dfit,'-b', label = 'D Peak Fit')
-    # ax50.plot(x_fit, D2fit,'-y', label = 'D2 Peak Fit')
-    # ax50.plot(x_fit, D3fit,'-c', label = 'D3 Peak Fit')
-    # ax50.plot(x_fit, D4fit,'-m', label = 'D4 Peak Fit')
-    # ax50.plot(x_fit, U1fit, '.g', label = 'U1 Peak Fit')
-    # ax50.plot(x_fit, ModelFit,'-r', label = 'Summed Peak Fit')
-    # ax50.set_xlabel(r'Raman Shift / cm$^-$$^1$')
-    # plt.autoscale(enable=True, axis='x', tight=True)
-    # plt.autoscale(enable=True, axis='y', tight=True)
-    # ax50.set_ylabel('Raman Intensity')
-    # ax50.set_ylim(min(signal_fit), max(signal_fit)*1.2)
-    # #plt.text(1075, 14100, 'ink', fontsize=20)
-    # plt.tick_params(axis='both', which='major')
-    # #plt.tight_layout()
-    # plt.savefig(SaveName + '_initialfit.jpg')
-    # #plt.show()
-    # plt.close()
+    fig = plt.figure(5)
+    ax50 = fig.add_subplot(111)
+    ax50.plot(x_fit, signal_fit,'.k', label = 'Experimental')
+    ax50.plot(x_fit, Gfit,'-g', label = 'G Peak Fit')
+    ax50.plot(x_fit, Dfit,'-b', label = 'D Peak Fit')
+    ax50.plot(x_fit, D2fit,'-y', label = 'D2 Peak Fit')
+    ax50.plot(x_fit, D3fit,'-c', label = 'D3 Peak Fit')
+    ax50.plot(x_fit, D4fit,'-m', label = 'D4 Peak Fit')
+    ax50.plot(x_fit, U1fit, '.g', label = 'U1 Peak Fit')
+    ax50.plot(x_fit, ModelFit,'-r', label = 'Summed Peak Fit')
+    ax50.set_xlabel(r'Raman Shift / cm$^-$$^1$')
+    plt.autoscale(enable=True, axis='x', tight=True)
+    plt.autoscale(enable=True, axis='y', tight=True)
+    ax50.set_ylabel('Raman Intensity')
+    ax50.set_ylim(min(signal_fit), max(signal_fit)*1.2)
+    #plt.text(1075, 14100, 'ink', fontsize=20)
+    plt.tick_params(axis='both', which='major')
+    #plt.tight_layout()
+    plt.savefig(SaveName + '_initialfit.jpg')
+    #plt.show()
+    plt.close()
     
     # need to add intensity bounds for each spectrum      
     # bounds for optimize.curve_fit: an array? of lows, an array? of highs, just need to update highs
@@ -332,7 +334,7 @@ for file in os.listdir('.'):
         gs1.update(left=0.13,right=0.96,top=0.95,bottom=0.12) #as percentages of total figure with 1,1 in upper right
         fig.set_size_inches(6, 5) #width, height
         fname = str(SaveName) + '_base.jpg'
-        plt.savefig(fname, dpi=300)
+        plt.savefig(fname, dpi = 600, bbox_inches='tight')
         plt.close()
         
         # Baseline Correction
@@ -436,9 +438,9 @@ for file in os.listdir('.'):
         ax40.fill_between(x_fit, ModelFit_nom - ModelFit_unc, ModelFit_nom + ModelFit_unc,  facecolor='red', alpha = 0.25)
         # will need to double the ModelFit_unc in fill line for 95% confidence only one stdev now
         ax40.set_xlabel(r'Raman Shift / cm$^{-1}$', fontsize=16)
-        plt.autoscale(enable=True, axis='x', tight=True)
+        plt.xlim(750,1900)
         plt.autoscale(enable=True, axis='y')
-        plt.setp(ax40, xticks=[600,800,1000,1200,1400,1600,1800,2000])
+        plt.setp(ax40, xticks=[800,1000,1200,1400,1600,1800])
         ax40.set_ylabel('Raman Intensity', fontsize=16)
         plt.tick_params(axis='both', which='major', labelsize=14)
         
@@ -446,15 +448,14 @@ for file in os.listdir('.'):
         ax41.plot(x_fit,Residuals_nom, '.b')
         ax41.axhline(0, linestyle='--', color = 'gray', linewidth = 1)
         ax41.set_ylabel('Residuals')
-        plt.setp(ax41, xticks=[800,1000,1200,1400,1600,1800])
+        plt.setp(ax41, xticks=[800,1000,1200,1400,1600])
         ax41.tick_params(direction='in',labelbottom=False,labelleft=True)
-        plt.autoscale(enable=True, axis='x', tight=True) 
-        
+        plt.xlim(750,1900)        
         plt.ylim(min(Residuals_nom)*1.15,max(Residuals_nom)*1.15)
         
         gs4.update(left=0.16,right=0.94,top=0.95,bottom=0.15) #as percentages of total figure with 1,1 in upper right
         fig.set_size_inches(6, 5) #width, height
-        plt.savefig(SaveName + '_fit.jpg', dpi=300)
+        plt.savefig(SaveName + '_fit.jpg', dpi = 600, bbox_inches='tight')
         plt.close()
         
         # ID/IG Ratio
@@ -554,7 +555,7 @@ for file in os.listdir('.'):
         # ax.set_xlim(0.1, 100)
         # ax.set_ylim(0.01, 100)
         # fig.set_size_inches(6, 5) #width, height
-        # plt.savefig(SaveName + '_Ratio.jpg',dpi=300)
+        # plt.savefig(SaveName + '_Ratio.jpg',dpi=300, bbox_inches='tight')
         
         # plt.close()
         

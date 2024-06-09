@@ -29,6 +29,12 @@ import uncertainties
 from uncertainties import ufloat
 from uncertainties.umath import sqrt,exp,log
 
+font = {'family' : 'Times New Roman',
+       'size' : 16}
+plt.rc('font', **font)
+plt.rcParams['xtick.direction'] = 'in'
+plt.rcParams['ytick.direction'] = 'in'
+
 # File Parameters
 # =============================================================================
 # # Data fitting parameters
@@ -195,7 +201,7 @@ def EnterData():
     # #plt.text(1075, 14100, 'ink', fontsize=20)
     # plt.tick_params(axis='both', which='major')
     # #plt.tight_layout()
-    # plt.savefig(SaveName + '_initialfit.jpg')
+    # plt.savefig(SaveName + '_initialfit.jpg', dpi = 600, bbox_inches='tight')
     # #plt.show()
     # plt.close()
     
@@ -315,7 +321,7 @@ for file in os.listdir('.'):
         ax11 = fig.add_subplot(gs1[0])
         ax11.plot(bkg_x,BaseResiduals, '.b')
         ax11.axhline(0, linestyle='--', color = 'gray', linewidth = 1)
-        ax11.set_ylabel('Residuals')
+        ax11.set_ylabel('Residuals', fontsize=14)
         plt.setp(ax11, xticks=[600,800,1000,1200,1400,1600,1800,2000])
         ax11.tick_params(direction='in',labelbottom=True,labelleft=True)
         plt.autoscale(enable=True, axis='x', tight=True) 
@@ -324,7 +330,7 @@ for file in os.listdir('.'):
         gs1.update(left=0.13,right=0.96,top=0.95,bottom=0.12) #as percentages of total figure with 1,1 in upper right
         fig.set_size_inches(6, 5) #width, height
         fname = str(SaveName) + '_base.jpg'
-        plt.savefig(fname, dpi=300)
+        plt.savefig(fname, dpi = 600, bbox_inches='tight')
         plt.close()
         
         # Baseline Correction
@@ -406,7 +412,7 @@ for file in os.listdir('.'):
         ModelFit_unc = np.fromiter((ModelFit[i].s for i in range(len(ModelFit))),float, count = len(ModelFit))
         Residuals_nom = np.fromiter((Residuals[i].n for i in range(len(ModelFit))),float, count = len(ModelFit))
 
-        
+        # area btw bkg subt areas = 950-1750
         fig = plt.figure(4)
         gs4 = fig.add_gridspec(nrows=2, ncols=1,
                   hspace=0, wspace=0, height_ratios=[1, 5])
@@ -426,25 +432,24 @@ for file in os.listdir('.'):
         ax40.fill_between(x_fit, ModelFit_nom - ModelFit_unc, ModelFit_nom + ModelFit_unc,  facecolor='red', alpha = 0.25)
         # will need to double the ModelFit_unc in fill line for 95% confidence only one stdev now
         ax40.set_xlabel(r'Raman Shift / cm$^{-1}$', fontsize=16)
-        plt.autoscale(enable=True, axis='x', tight=True)
+        plt.xlim(750,1900)
         plt.autoscale(enable=True, axis='y')
-        plt.setp(ax40, xticks=[600,800,1000,1200,1400,1600,1800,2000])
-        ax40.set_ylabel('Raman Intensity', fontsize=16)
+        plt.setp(ax40, xticks=[800,1000,1200,1400,1600,1800])
+        ax40.set_ylabel('Raman Intensity')
         plt.tick_params(axis='both', which='major', labelsize=14)
         
         ax41 = fig.add_subplot(gs4[0])
         ax41.plot(x_fit,Residuals_nom, '.b')
         ax41.axhline(0, linestyle='--', color = 'gray', linewidth = 1)
-        ax41.set_ylabel('Residuals')
+        ax41.set_ylabel('Residuals', fontsize=14)
         plt.setp(ax41, xticks=[800,1000,1200,1400,1600,1800])
-        ax41.tick_params(direction='in',labelbottom=False,labelleft=True)
-        plt.autoscale(enable=True, axis='x', tight=True) 
-        
+        ax41.tick_params(direction='in',labelbottom=False,labelleft=True)        
+        plt.xlim(750,1900)
         plt.ylim(min(Residuals_nom)*1.15,max(Residuals_nom)*1.15)
         
         gs4.update(left=0.16,right=0.94,top=0.95,bottom=0.15) #as percentages of total figure with 1,1 in upper right
         fig.set_size_inches(6, 5) #width, height
-        plt.savefig(SaveName + '_fit.jpg', dpi=300)
+        plt.savefig(SaveName + '_fit.jpg', dpi = 600, bbox_inches='tight')
         plt.close()
         
         # ID/IG Ratio
@@ -537,14 +542,15 @@ for file in os.listdir('.'):
         ax.loglog(La_calc2 , Ratio,'or')
         high_label = u'{:.2fP}'.format(high_La_calc)
         low_label = u'{:.2fP}'.format(low_La_calc)
-        ax.text(high_La, Exp_ratio-0.5, high_label, va="top", ha = "center", size = 10) #offset for legibility
-        ax.text(low_La, Exp_ratio-0.5, low_label, va="top", ha = "center", size = 10) #offset for legibility
-        ax.set_xlabel('$L_a$', fontsize=16)
-        ax.set_ylabel('$I_D$ / $I_G$', fontsize=16)
+        ax.text(high_La, Exp_ratio-0.5, high_label, va="top", ha = "center", size = 12) #offset for legibility
+        ax.text(low_La, Exp_ratio-0.5, low_label, va="top", ha = "center", size = 12) #offset for legibility
+        ax.set_xlabel('L$_a$', fontsize=16)
+        ax.set_ylabel('I$_D$ / I$_G$', fontsize=16)
         ax.set_xlim(0.1, 100)
         ax.set_ylim(0.01, 100)
         fig.set_size_inches(6, 5) #width, height
-        plt.savefig(SaveName + '_Ratio.jpg',dpi=300)
+        #plt.tight_layout()  will removing this mean I don't get errors with polystyrene?
+        plt.savefig(SaveName + '_Ratio.jpg', dpi = 300, bbox_inches='tight')
         
         plt.close()
         

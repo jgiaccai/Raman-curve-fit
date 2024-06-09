@@ -43,7 +43,7 @@ for file in os.listdir('.'):
 
         
         q_BWF = data[9]
-        
+        avgCorr = unc[9]
         g_pos = data[10]
         g_pos_unc = unc[10]
         g_width = data[11]
@@ -78,40 +78,47 @@ for file in os.listdir('.'):
         d4_width_unc = unc[23]
         d4_intensity = data[24]
         d4_ints_unc = unc[24]
+
+        tpa_pos = data[25]
+        tpa_pos_unc = unc[25]
+        tpa_width = data[26]
+        tpa_width_unc = unc[26]
+        tpa_intensity = data[27]
+        tpa_ints_unc = unc[27]
+
+        Lalow_val = data[28]
+        Lalow_unc = unc[28]
+        ID_IG = data[30]
+        ID_IG_unc = unc[30]       
         
-        Lalow_val = data[25]
-        Lalow_unc = unc[25]
-        ID_IG = data[27]
-        ID_IG_unc = unc[27]       
+        ID_IT = data[31]
+        ID_IT_unc = unc[31] 
+        ID2_IT = data[32]
+        ID2_IT_unc = unc[32]        
+        ID3_IT = data[33]
+        ID3_IT_unc = unc[33]        
+        ID4_IT = data[34]
+        ID4_IT_unc = unc[34]        ### this is where TPA stuff will go
+        IG_IT = data[35]
+        IG_IT_unc = unc[35]        
         
-        ID_IT = data[28]
-        ID_IT_unc = unc[28] 
-        ID2_IT = data[29]
-        ID2_IT_unc = unc[29]        
-        ID3_IT = data[30]
-        ID3_IT_unc = unc[30]        
-        ID4_IT = data[31]
-        ID4_IT_unc = unc[31]               
-        IG_IT = data[32]
-        IG_IT_unc = unc[32]        
+        ID2_IG = data[36]
+        ID2_IG_unc = unc[36]        
+        ID3_ID = data[37]
+        ID3_ID_unc = unc[37]        
+        ID4_ID = data[38]
+        ID4_ID_unc = unc[38]      ### more TPA stuff will go here
         
-        ID2_IG = data[33]
-        ID2_IG_unc = unc[33]        
-        ID3_ID = data[34]
-        ID3_ID_unc = unc[34]        
-        ID4_ID = data[35]
-        ID4_ID_unc = unc[35]
-        
-        lowbkg_st = data[36]
-        lowbkg_end = unc[36]        
-        hibkg_st = data[37]
-        hibkg_end = unc[37]       
+        lowbkg_st = data[39]
+        lowbkg_end = unc[39]        
+        hibkg_st = data[38]
+        hibkg_end = unc[38]       
            
         scan_info = np.genfromtxt(fullFilename, dtype = str, delimiter = '\t', usecols = (1), skip_footer = (len(data)+1))
         fitting_info = filename.split(sep='_')[-1]
         
         #########################  
-        # to solve concat/append unc.  concat all the bits into individual lists, then after all loops run, concat into a df below
+        # to solve concat/append unc. here we concat all the bits into individual lists, then after all loops run, concat into a df below
 
         
         tempData.append({'Position': position, 
@@ -131,7 +138,8 @@ for file in os.listdir('.'):
             'PkFit Adj R2': pkfit_r2, 
             'PkFit SEE %D': pkfit_see/d_intensity, 
                         
-            'qBWF': q_BWF, 
+            'qBWF': q_BWF,
+            'average Corr': avgCorr,
             
             'G Peak Position': g_pos, 
             'G PeakPos Unc':g_pos_unc,
@@ -168,6 +176,13 @@ for file in os.listdir('.'):
             'D4 Intensity': d4_intensity,
             'D4 Intensity unc': d4_ints_unc,
             
+            'TPA Peak Position': tpa_pos,
+            'TPA PeakPos Unc': tpa_pos_unc,
+            'TPA Peak Width': tpa_width, 
+            'TPA PeakWid Unc': tpa_width_unc,
+            'TPA Intensity': tpa_intensity,
+            'TPA Intensity unc': tpa_ints_unc,
+            
             'Conj Length (low)': Lalow_val , 
             'Conj Length unc': Lalow_unc , 
             'ID IG Ratio': ID_IG ,
@@ -181,6 +196,8 @@ for file in os.listdir('.'):
             'ID3 IT Ratio unc': ID3_IT_unc ,
             'ID4 IT Ratio': ID4_IT ,
             'ID4 IT Ratio unc': ID4_IT_unc ,
+            #'ITPA IT Ratio': ITPA_IT ,
+            #'ITPA IT Ratio unc': ITPA_IT_unc ,      
             'IG IT Ratio': IG_IT ,
             'IG IT Ratio unc': IG_IT_unc ,            
             
@@ -190,13 +207,15 @@ for file in os.listdir('.'):
             'ID3 ID Ratio unc': ID3_ID_unc ,
             'ID4 ID Ratio': ID4_ID ,
             'ID4 ID Ratio unc': ID4_ID_unc ,
+            #'ITPA ID Ratio': ITPA_ID ,
+            #'ITPA ID Ratio unc': ITPA_ID_unc ,
             
             'Filename': filename ,
             #'Noise': noise ,
             #'SNR D band': SNRD ,  
             })
         
-# this is where concat the individual lists into dataframes will go--outside the loop  
+# this is where concat the individual lists into dataframes is--outside the loop  
 Data = pd.DataFrame(tempData)          
 Data.to_csv((fitting_info + 'RamanFit_summary.csv'),index=False,header=True)  
 
@@ -211,12 +230,16 @@ elif num_pks.max() == 4:
     IndVar = Data[['D Peak Position','D Peak Width','G Peak Position','G Peak Width',
                    'ID IG Ratio', 'D3 Peak Position','D3 Peak Width',  
                    'D4 Peak Position','D4 Peak Width']]
-else:
+elif num_pks.max() == 5:
     IndVar = Data[['D Peak Position','D Peak Width','G Peak Position','G Peak Width',
                    'ID IG Ratio', 'D3 Peak Position','D3 Peak Width', 
                    'D4 Peak Position','D4 Peak Width', 'D2 Peak Position',
                    'D2 Peak Width']]
-
+else:
+    IndVar = Data[['D Peak Position','D Peak Width','G Peak Position','G Peak Width',
+                   'ID IG Ratio', 'D3 Peak Position','D3 Peak Width', 
+                   'D4 Peak Position','D4 Peak Width', 'D2 Peak Position',
+                   'D2 Peak Width', 'TPA Peak Position', 'TPA Peak Width']]
 if exc_laser.mean() < 500:
     lasercolor = 'blue'
 elif exc_laser.mean() <600:

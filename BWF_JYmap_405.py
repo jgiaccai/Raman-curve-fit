@@ -7,6 +7,7 @@
 ## 20230524 choose baseline fitting order at top 
 ## 20230628 v.3 now with uncertainties!
 ## 20230919 using adjusted R2 instead of R2 for baseline and signal fits
+## 20231210 add in correlation matrix for individual fits and avgCorr calc
 
 
 import sys
@@ -17,6 +18,7 @@ from scipy.optimize import least_squares
 import numpy.polynomial.polynomial as poly
 import matplotlib.pyplot as plt
 #from matplotlib.gridspec import GridSpec
+import seaborn as sns
 #from scipy import signal
 import os
 import fnmatch
@@ -27,7 +29,18 @@ import pandas as pd  #needed to read JY data
 import linecache
 import uncertainties
 from uncertainties import ufloat
-from uncertainties.umath import sqrt,exp,log
+from uncertainties import unumpy
+from uncertainties.umath import sqrt as usqrt
+from uncertainties.umath import exp as uexp
+from uncertainties.umath import log as ulog
+
+
+font = {'family' : 'Times New Roman',
+       'size' : 16}
+plt.rc('font', **font)
+plt.rcParams['xtick.direction'] = 'in'
+plt.rcParams['ytick.direction'] = 'in'
+
 
 # File Parameters
 # =============================================================================
@@ -40,7 +53,7 @@ FitD3On = 0
 FitD4On = 0
 FitU1On = 1 #unidentified peak but need to include in envelope for 405 etc
 
-fitVersion = 3.01 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
+fitVersion = 3.02 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
 
 base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [965, 1135, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
@@ -142,12 +155,12 @@ def ReadCollDetails(inputFilename):
 
 def lorentz(xc, w, I):  
     global x_fit
-    s = ((x_fit - xc)/w)
+    s = ((x_fit - xc)/w)  #width here is half width half max
     return (I)*(1/(1+s**2)) #Wikipedia definition.  gives correct value for intensity.  using this definition fit_results you don't need to account for the peak width in the intensity.
 
 def BWF(xc,w,I):
     global qBWF,x_fit
-    s = ((x_fit - xc)/w)
+    s = ((x_fit - xc)/w) #width here is half width half max
     return (I)*((1+s/qBWF)**2/(1+s**2))
 
 def EnterData():
@@ -206,7 +219,7 @@ def EnterData():
     # #plt.text(1075, 14100, 'ink', fontsize=20)
     # plt.tick_params(axis='both', which='major')
     # #plt.tight_layout()
-    # plt.savefig(SaveName + '_initialfit.jpg')
+    # plt.savefig(SaveName + '_initialfit.jpg', dpi = 600, bbox_inches='tight')
     # #plt.show()
     # plt.close()
     
@@ -319,8 +332,8 @@ for file in os.listdir('.'):
             ax.plot(wavenum , signal,'-k')
             ax.plot(x_fit, baseline, '-r')
             ax.plot(bkg_x , bkg_signal,'.b')
-            ax.set_xlabel('Raman Shift / cm$^{-1}$')
-            ax.set_ylabel('Raman Intensity')
+            ax.set_xlabel('Wavelength / cm$^{-1}$')
+            ax.set_ylabel('Raman Intensity / Arbitr. Units')
             ax.set_ylim(0, 1.5*max(signal_fit))
             plt.autoscale(enable=True, axis='x', tight=True)
             plt.autoscale(enable=True, axis='y', tight=True)
@@ -328,9 +341,9 @@ for file in os.listdir('.'):
             ax11 = fig.add_subplot(gs1[0])
             ax11.plot(bkg_x,BaseResiduals, '.b')
             ax11.axhline(0, linestyle='--', color = 'gray', linewidth = 1)
-            ax11.set_ylabel('Residuals')
+            ax11.set_ylabel('Residuals',fontsize=12)
             plt.setp(ax11, xticks=[600,800,1000,1200,1400,1600,1800,2000])
-            ax11.tick_params(direction='in',labelbottom=True,labelleft=True)
+            ax11.tick_params(direction='in',labelbottom=True,labelleft=True, labelsize = 12)
             plt.autoscale(enable=True, axis='x', tight=True) 
             plt.ylim(min(BaseResiduals)*1.15,max(BaseResiduals)*1.15)
                 
@@ -338,7 +351,8 @@ for file in os.listdir('.'):
             gs1.update(left=0.13,right=0.96,top=0.95,bottom=0.12) #as percentages of total figure with 1,1 in upper right
             fig.set_size_inches(6, 5) #width, height
             fname = str(SaveName) + '_base.jpg'
-            plt.savefig(fname, dpi=300)
+            #fig.tight_layout()
+            plt.savefig(fname, dpi = 600, bbox_inches='tight')
             plt.close()
             
             # Baseline Correction
@@ -353,17 +367,46 @@ for file in os.listdir('.'):
             
             EnterData()
             #print 'FitParam ', FitParam
-            minres = curve_fit(FitFunc,x_fit,signal_fit,p0=FitParam,method = 'trf', bounds=bounds, full_output=True) 
-            if minres[4] > 1 and minres[4] < 4:
+            try:
+                minres = curve_fit(FitFunc,x_fit,signal_fit,p0=FitParam,method = 'trf', bounds=bounds, full_output=True) 
+            except RuntimeError as error:  #if fit is unsuccessful
+                    print("No fit found")
+                    print(error)
+                    fit_results = np.zeros(NumParams)  #shouldn't need this, but just in case, not passing bad fit data
+                    continue
+            else:  #if fit is successful
                 fit_results=minres[0]
+                #print('results found')
                 covMatrix = minres[1] 
                 dFit = np.sqrt(np.diag(covMatrix))
-                #print(fit_results)
-                #iterations = minres.nfev # I think? not sure 
-            else:
-                print(minres[3])
-                fit_results = np.zeros(NumParams)
-                continue
+                
+                ##corr matrix from cov
+                corrMatrix = covMatrix * 0
+                
+                # need something to skip entering correlations for unfitted peaks
+                iterList = []
+                if FitGOn == 1:
+                    iterList = iterList + [0,6,12]
+                if FitDOn == 1:
+                    iterList = iterList + [1,7,13]
+                if FitD2On == 1:
+                    iterList = iterList + [2,8,14]
+                if FitD3On == 1:
+                    iterList = iterList + [3,9,15]
+                if FitD4On == 1:
+                    iterList = iterList + [4,10,16]
+                corrSum=0
+                for i in iterList:
+                    for j in iterList:
+                        # note here that we are just normalizing the covariance matrix                   
+                        corrMatrix[i][j] = covMatrix[i,j] / (dFit[i] * dFit[j])
+                        corrSum = corrSum + abs(corrMatrix[i,j])/2
+                        avgCorr = round((corrSum/np.sum(np.arange(NumPeaks*3))),2)
+                fig1 = plt.figure(figsize=(6, 6))
+                sns.heatmap(corrMatrix, annot=False, linewidth=.5, center=0, cmap = 'vlag')
+                fig1.suptitle(SaveName + '\n average correlation: '+str(avgCorr))
+                fig1.savefig(SaveName + '_corrHEAT.jpg', dpi = 600, bbox_inches='tight')
+                plt.close()
             
             #setting fit results to zero if peak is off
             
@@ -412,7 +455,7 @@ for file in os.listdir('.'):
             ss_tot = np.sum((signal_fit - np.mean(signal_fit)) ** 2)
             R2_fit = 1-ss_res/ss_tot # not meaningful because can't use R2 on Gaussian or Lorentzian fits, so need to use standard error regression
             AdjR2_fit = 1-(1-R2_fit)*(len(ModelFit)-1)/((len(ModelFit))-(NumParams)-1) # wiki definition, adjusted to account for no. variables but still non-linear so ish?
-            SEE_fit = sqrt(ss_res/(len(signal_fit)-NumPeaks*3))
+            SEE_fit = usqrt(ss_res/(len(signal_fit)-NumPeaks*3))
             
             # Figure 4 Plot of individual peak fits and total peak fit with experimental
             
@@ -438,17 +481,17 @@ for file in os.listdir('.'):
                 ax40.plot(x_fit, U1fit_nom, '-y', label = 'U1 peak fit')
             ax40.plot(x_fit, ModelFit_nom,'-r', label = 'Summed Peak Fit')
             ax40.fill_between(x_fit, ModelFit_nom - ModelFit_unc, ModelFit_nom + ModelFit_unc,  facecolor='red', alpha = 0.25)
-            ax40.set_xlabel(r'Raman Shift / cm$^{-1}$', fontsize=16)
+            ax40.set_xlabel(r'Wavenumber / cm$^{-1}$', fontsize=16)
             plt.autoscale(enable=True, axis='x', tight=True)
             plt.autoscale(enable=True, axis='y')
             plt.setp(ax40, xticks=[1000,1200,1400,1600,1800,2000])
-            ax40.set_ylabel('Raman Intensity', fontsize=16)
+            ax40.set_ylabel('Raman Intensity / Arbitr. Units', fontsize=16)
             plt.tick_params(axis='both', which='major', labelsize=14)
             
             ax41 = fig.add_subplot(gs4[0])
             ax41.plot(x_fit,Residuals_nom, '.b')
             ax41.axhline(0, linestyle='--', color = 'gray', linewidth = 1)
-            ax41.set_ylabel('Residuals')
+            ax41.set_ylabel('Residuals', fontsize=12)
             plt.setp(ax41, xticks=[800,1000,1200,1400,1600,1800])
             ax41.tick_params(direction='in',labelbottom=False,labelleft=True)
             plt.autoscale(enable=True, axis='x', tight=True) 
@@ -517,7 +560,7 @@ for file in os.listdir('.'):
              # we can neglect second exponential term as it gets very small compared to first term (by e-10)
              # however for LsubA close to 20, the two terms are close in value, so uncertainty only for low_La
              
-            low_La_calc = sqrt((-1*np.pi)/(log(((ra**2-2)/(ra**2-1))*(IDIG/CA))))
+            low_La_calc = usqrt((-1*np.pi)/(ulog(((ra**2-2)/(ra**2-1))*(IDIG/CA))))
             low_label = u'{:.2fP}'.format(low_La_calc)
 
             
@@ -525,7 +568,7 @@ for file in os.listdir('.'):
             La_calc = [low_La, high_La]
             
             if high_La > 8:  #10 via Cancado et al. but with uncertainty...actually okay.
-                high_La_calc = sqrt(1/((IDIG)/CA/(np.pi*(3.1**2-1))))
+                high_La_calc = usqrt(1/((IDIG)/CA/(np.pi*(3.1**2-1))))
                 La_calc2 = [low_La_calc.n, high_La_calc.n]
                 high_label = u'{:.2fP}'.format(high_La_calc)
             else:
@@ -541,23 +584,76 @@ for file in os.listdir('.'):
             dRatio_model = np.fromiter((Ratio_model[i].s for i in range(len(Ratio_model))),float, count = len(Ratio_model))
             
             
-            fig = plt.figure(3)
-            ax = fig.add_subplot(111)
-            ax.plot(La_model , Ratio_model_plot ,'-k')
-            ax.fill_between(La_model, Ratio_model_plot - dRatio_model, Ratio_model_plot + dRatio_model,  facecolor='gray', alpha = 0.25)
-            # will need to double the dRatio_model in fill line for 95% confidence only one stdev now
-            ax.loglog(La_calc2 , Ratio,'or')
-            ax.text(high_La, Exp_ratio, high_label, va="top", ha = "center", size = 10) #offset for legibility
-            ax.text(low_La, Exp_ratio, low_label, va="top", ha = "center", size = 10) #offset for legibility
-            ax.set_xlabel('$L_a$', fontsize=16)
-            ax.set_ylabel('$I_D$ / $I_G$', fontsize=16)
-            ax.set_xlim(0.1, 100)
-            ax.set_ylim(0.01, 100)
-            fig.set_size_inches(6, 5) #width, height
-            plt.savefig(SaveName + '_Ratio.jpg',dpi=300)
+            # fig = plt.figure(3)
+            # ax = fig.add_subplot(111)
+            # ax.plot(La_model , Ratio_model_plot ,'-k')
+            # ax.fill_between(La_model, Ratio_model_plot - dRatio_model, Ratio_model_plot + dRatio_model,  facecolor='gray', alpha = 0.25)
+            # # will need to double the dRatio_model in fill line for 95% confidence only one stdev now
+            # ax.loglog(La_calc2 , Ratio,'or')
+            # ax.text(high_La, Exp_ratio, high_label, va="top", ha = "center", size = 10) #offset for legibility
+            # ax.text(low_La, Exp_ratio, low_label, va="top", ha = "center", size = 10) #offset for legibility
+            # ax.set_xlabel('$L_a$', fontsize=16)
+            # ax.set_ylabel('$I_D$ / $I_G$', fontsize=16)
+            # ax.set_xlim(0.1, 100)
+            # ax.set_ylim(0.01, 100)
+            # fig.set_size_inches(6, 5) #width, height
+            # plt.savefig(SaveName + '_Ratio.jpg',dpi=300)
             
-            plt.close()
+            # plt.close()
             
+            
+            f = open(SaveName+'_fitfile.txt',"w")
+            f.write("{}\t{}\t{}\n".format('Collection Details',CollDet,''))
+            f.write("{}\t{}\t{}\n".format('Original File',Loadfile,''))
+            f.write("{}\t{}\t{}\n".format('position',str(n).zfill(2),'0'))
+            f.write("{}\t{}\t{}\n".format('Location', locations[n],''))            
+            f.write("{}\t{}\t{}\n".format('Laser Wavelength', Ext_Lambda,'0'))
+            f.write("{}\t{}\t{}\n".format('Num Peaks and fit version', NumPeaks,fitVersion))
+
+            f.write("{}\t{}\t{}\n".format('Baseline Order', base_order, 0) )            
+            f.write("{}\t{}\t{}\n".format('Baseline R2', AdjBaseR2[0], 0) )
+            f.write("{}\t{}\t{}\n".format('Baseline Slope', BaseSlope, 0) )
+            
+            f.write("{}\t{}\t{}\n".format('Peak Fit R2ish', float(AdjR2_fit.n), float(AdjR2_fit.s)) )
+            f.write("{}\t{}\t{}\n".format('Peak Fit SEE', float(SEE_fit.n), float(SEE_fit.s)) )
+            
+            f.write("{}\t{}\t{}\n".format('qBWF', qBWF, avgCorr) )
+            
+            f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], dFit[0]) )
+            f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], dFit[6] ))
+            f.write("{}\t{}\t{}\n".format('G Band Peak Intensity', fit_results[12],dFit[12]))
+            
+            f.write("{}\t{}\t{}\n".format('D Band Peak Position',fit_results[1],dFit[1]))
+            f.write("{}\t{}\t{}\n".format('D Band Peak Width',fit_results[7],dFit[7]))
+            f.write("{}\t{}\t{}\n".format('D Band Peak Intensity', fit_results[13],dFit[13]))
+            
+            f.write("{}\t{}\t{}\n".format('D2 Band Peak Position',fit_results[2],dFit[2]))
+            f.write("{}\t{}\t{}\n".format('D2 Band Peak Width',fit_results[8],dFit[8]))
+            f.write("{}\t{}\t{}\n".format('D2 Band Peak Intensity', fit_results[14],dFit[14]))
+            
+            f.write("{}\t{}\t{}\n".format('D3 Band Peak Position',fit_results[3],dFit[3]))
+            f.write("{}\t{}\t{}\n".format('D3 Band Peak Width',fit_results[9],dFit[9]))
+            f.write("{}\t{}\t{}\n".format('D3 Band Peak Intensity', fit_results[15],dFit[15]))
+            
+            f.write("{}\t{}\t{}\n".format('D4 Band Peak Position',fit_results[4],dFit[4]))
+            f.write("{}\t{}\t{}\n".format('D4 Band Peak Width',fit_results[10],dFit[10]))
+            f.write("{}\t{}\t{}\n".format('D4 Band Peak Intensity', fit_results[16],dFit[16]))
+            
+            f.write("{}\t{}\t{}\n".format('Conjugation Length (low)',low_La_calc.n,low_La_calc.s))
+            f.write("{}\t{}\t{}\n".format('Conjugation Length (high)',high_La,high_La_calc.s))
+            f.write("{}\t{}\t{}\n".format('ID/IG',Exp_ratio,Exp_ratio_stdev))
+            
+            f.write("{}\t{}\t{}\n".format('ID/total ratio', IDIT.n,IDIT.s))
+            f.write("{}\t{}\t{}\n".format('ID2/total ratio', ID2IT.n,ID2IT.s))
+            f.write("{}\t{}\t{}\n".format('ID3/total ratio', ID3IT.n,ID3IT.s))
+            f.write("{}\t{}\t{}\n".format('ID4/total ratio', ID4IT.n,ID4IT.s))
+            f.write("{}\t{}\t{}\n".format('IG/total ratio',IGIT.n,IGIT.s))
+            f.write("{}\t{}\t{}\n".format('ID2/IG ratio', ID2IG.n,ID2IG.s))
+            f.write("{}\t{}\t{}\n".format('ID3/ID ratio', ID3ID.n,ID3ID.s))
+            f.write("{}\t{}\t{}\n".format('ID4/ID ratio', ID4ID.n,ID4ID.s))
+            f.write("{}\t{}\t{}\n".format('bkd_low',bkd_bounds[0],bkd_bounds[1]))
+            f.write("{}\t{}\t{}\n".format('bkd_hi',bkd_bounds[2],bkd_bounds[3])) 
+            f.close()            
             
             f = open(SaveName+'_fitfile.txt',"w")
             f.write("{}\t{}\t{}\n".format('Collection Details',CollDet,''))
@@ -574,7 +670,7 @@ for file in os.listdir('.'):
             f.write("{}\t{}\t{}\n".format('Peak Fit R2ish', float(AdjR2_fit.n), float(AdjR2_fit.s)) )
             f.write("{}\t{}\t{}\n".format('Peak Fit SEE', float(SEE_fit.n), float(SEE_fit.s)) )
             
-            f.write("{}\t{}\t{}\n".format('qBWF', qBWF, 0) )
+            f.write("{}\t{}\t{}\n".format('qBWF', qBWF, avgCorr) )
             
             f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], dFit[0]) )
             f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], dFit[6] ))

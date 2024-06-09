@@ -6,7 +6,7 @@
 ## 20230524 choose baseline fitting order at top 
 ## 20230628 v.3 now with uncertainties!
 ## 20230919 using adjusted R2 instead of R2 for baseline and signal fits
-
+## 20231210 add in correlation matrix for individual fits and avgCorr calc
 
 import sys
 import numpy as np
@@ -16,6 +16,7 @@ from scipy.optimize import least_squares
 import numpy.polynomial.polynomial as poly
 import matplotlib.pyplot as plt
 #from matplotlib.gridspec import GridSpec
+import seaborn as sns
 #from scipy import signal
 import os
 import fnmatch
@@ -42,16 +43,16 @@ FitD3On = 1
 FitD4On = 1
 FitU1On = 1 #unidentified peak but need to include in envelope for 405 etc
 
-fitVersion = 3.01 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
+fitVersion = 3.02 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
 
 base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [965, 1135, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
-G_bounds = [1590, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
-D_bounds = [1350, 60, 100, 40]
-D2_bounds = [1620, 10, 20, 10]
-D3_bounds = [1500, 10, 45, 40]
-D4_bounds = [1225, 10, 60, 40]
+G_bounds = [1595, 50, 45, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
+D_bounds = [1370, 60, 100, 40]
+D2_bounds = [1620, 30, 25, 20]
+D3_bounds = [1500, 50, 85, 80]
+D4_bounds = [1225, 60, 60, 55]
 U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in some 405 data
 IIM = 0.8 #Initial intensity multiplier for G and D peaks 
 qBWF = 0
@@ -376,9 +377,39 @@ for file in os.listdir('.'):
                     continue
             else:  #if fit is successful
                 fit_results=minres[0]
+                #print('results found')
                 covMatrix = minres[1] 
                 dFit = np.sqrt(np.diag(covMatrix))
-            
+                
+                ##corr matrix from cov
+                corrMatrix = covMatrix * 0
+                
+                # need something to skip entering correlations for unfitted peaks
+                iterList = []
+                if FitGOn == 1:
+                    iterList = iterList + [0,6,12]
+                if FitDOn == 1:
+                    iterList = iterList + [1,7,13]
+                if FitD2On == 1:
+                    iterList = iterList + [2,8,14]
+                if FitD3On == 1:
+                    iterList = iterList + [3,9,15]
+                if FitD4On == 1:
+                    iterList = iterList + [4,10,16]
+                if FitU1On == 1:
+                    iterList = iterList + [5,11,17]
+                corrSum=0
+                for i in iterList:
+                    for j in iterList:
+                        # note here that we are just normalizing the covariance matrix                   
+                        corrMatrix[i][j] = covMatrix[i,j] / (dFit[i] * dFit[j])
+                        corrSum = corrSum + abs(corrMatrix[i,j])/2
+                        avgCorr = round((corrSum/np.sum(np.arange(NumPeaks*3))),2)
+                fig1 = plt.figure(figsize=(6, 6))
+                sns.heatmap(corrMatrix, annot=False, linewidth=.5, center=0, cmap = 'vlag')
+                fig1.suptitle(SaveName + '\n average correlation: '+str(avgCorr))
+                fig1.savefig(SaveName + '_corrHEAT.jpg', dpi = 600, bbox_inches='tight')
+                plt.close()
             #setting fit results to zero if peak is off
             
             if FitGOn == 0:
@@ -588,7 +619,7 @@ for file in os.listdir('.'):
             f.write("{}\t{}\t{}\n".format('Peak Fit R2ish', float(AdjR2_fit.n), float(AdjR2_fit.s)) )
             f.write("{}\t{}\t{}\n".format('Peak Fit SEE', float(SEE_fit.n), float(SEE_fit.s)) )
             
-            f.write("{}\t{}\t{}\n".format('qBWF', qBWF, 0) )
+            f.write("{}\t{}\t{}\n".format('qBWF', qBWF, avgCorr) )
             
             f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], dFit[0]) )
             f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], dFit[6] ))

@@ -6,6 +6,7 @@
 ## position and location info to maintain parity with other mapping/queueing systems
 ## 20230628 v.3 now with uncertainties!
 ## 20230919 using adjusted R2 instead of R2 for baseline and signal fits
+## 20231208 added graph of correlation matrix for fit.
 
 import sys
 import numpy as np
@@ -26,6 +27,7 @@ import linecache
 import uncertainties
 from uncertainties import ufloat
 from uncertainties.umath import sqrt,exp,log
+import seaborn as sns
 
 # File Parameters
 # =============================================================================
@@ -33,21 +35,21 @@ from uncertainties.umath import sqrt,exp,log
 # 
 FitGOn = 1 # 1 is yes, 0 is no
 FitDOn = 1
-FitD2On = 1
+FitD2On = 0
 FitD3On = 1
-FitD4On = 1
+FitD4On = 0
 FitU1On = 0 #unidentified peak but need to include in envelope for 405 etc
 
-fitVersion = 3.01 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
+fitVersion = 3.02 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
 
 base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [520, 950, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
 G_bounds = [1590, 50, 40, 35] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
 D_bounds = [1310, 60, 100, 60]
-D2_bounds = [1620, 10, 20, 10]
-D3_bounds = [1500, 15, 55, 50]
-D4_bounds = [1200, 10, 60, 40]
+D2_bounds = [1630, 50, 30, 20]
+D3_bounds = [1470, 80, 85, 80]
+D4_bounds = [1200, 60, 60, 55]
 U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in some 405 data
 IIM = 0.8 #Initial intensity multiplier for G and D peaks 
 qBWF = -10
@@ -221,11 +223,12 @@ def FitFunc(x_fit, *EvalSimp):
     #global NumParams, G_bounds, D_bounds, D2_bounds, D3_bounds, D4_bounds, U1_bounds
     #global signal_fit, Residuals
     
-    '''
-    Need to 
+    ''' 
+    if using minimize need to 
     (1) evaluate Lorentzian for each peak
     (2) Add all peak fits together for total peak fit
     (3) Subtract total peak fit from real data for initial residuals
+    if using curve_fit, just steps 1 & 2
     '''
     
     Gfit = FitGOn*lorentz(EvalSimp[0],EvalSimp[6],EvalSimp[12])
@@ -327,7 +330,7 @@ for file in os.listdir('.'):
         gs1.update(left=0.13,right=0.96,top=0.95,bottom=0.12) #as percentages of total figure with 1,1 in upper right
         fig.set_size_inches(6, 5) #width, height
         fname = str(SaveName) + '_base.jpg'
-        plt.savefig(fname, dpi=300)
+        plt.savefig(fname, dpi = 600, bbox_inches='tight')
         plt.close()
         
         # Baseline Correction
@@ -352,8 +355,39 @@ for file in os.listdir('.'):
                 continue
         else:  #if fit is successful
             fit_results=minres[0]
+            print('results found')
             covMatrix = minres[1] 
             dFit = np.sqrt(np.diag(covMatrix))
+            
+            ##corr matrix from cov
+            corrMatrix = covMatrix * 0
+            
+            # need something to skip entering correlations for unfitted peaks
+            iterList = []
+            if FitGOn == 1:
+                iterList = iterList + [0,6,12]
+            if FitDOn == 1:
+                iterList = iterList + [1,7,13]
+            if FitD2On == 1:
+                iterList = iterList + [2,8,14]
+            if FitD3On == 1:
+                iterList = iterList + [3,9,15]
+            if FitD4On == 1:
+                iterList = iterList + [4,10,16]
+            if FitU1On == 1:
+                iterList = iterList + [5,11,17]
+            corrSum=0
+            for i in iterList:
+                for j in iterList:
+                    # note here that we are just normalizing the covariance matrix                   
+                    corrMatrix[i][j] = covMatrix[i,j] / (dFit[i] * dFit[j])
+                    corrSum = corrSum + abs(corrMatrix[i,j])/2
+                    avgCorr = round((corrSum/np.sum(np.arange(NumPeaks*3))),2)
+            fig1 = plt.figure(figsize=(6, 6))
+            sns.heatmap(corrMatrix, annot=False, linewidth=.5, center=0, cmap = 'vlag')
+            fig1.suptitle(SaveName + '\n average correlation: '+str(avgCorr))
+            fig1.savefig(SaveName + '_corrHEAT.jpg', dpi = 600, bbox_inches='tight')
+            plt.close()
         
         #setting fit results to zero if peak is off
         
@@ -374,6 +408,7 @@ for file in os.listdir('.'):
         (Gloc, Dloc, D2loc, D3loc, D4loc, U1loc, Gwid, Dwid, D2wid, D3wid, D4wid, U1wid, 
              G_ints, D_ints, D2_ints, D3_ints, D4_ints, U1_ints) = uncertainties.correlated_values(fit_results, covMatrix)
         
+        # setting nominal intensities without uncertainties for graphing, etc.
         Gfit_nom = FitGOn*lorentz(fit_results[0],fit_results[6],fit_results[12])
         Dfit_nom = FitDOn*lorentz(fit_results[1],fit_results[7],fit_results[13])
         D2fit_nom = FitD2On*lorentz(fit_results[2],fit_results[8],fit_results[14])
@@ -430,9 +465,9 @@ for file in os.listdir('.'):
         ax40.fill_between(x_fit, ModelFit_nom - ModelFit_unc, ModelFit_nom + ModelFit_unc,  facecolor='red', alpha = 0.25)
         # will need to double the ModelFit_unc in fill line for 95% confidence only one stdev now
         ax40.set_xlabel(r'Raman Shift / cm$^{-1}$', fontsize=16)
-        plt.autoscale(enable=True, axis='x', tight=True)
+        plt.xlim(750,1900)
         plt.autoscale(enable=True, axis='y')
-        plt.setp(ax40, xticks=[600,800,1000,1200,1400,1600,1800,2000])
+        plt.setp(ax40, xticks=[800,1000,1200,1400,1600,1800])
         ax40.set_ylabel('Raman Intensity', fontsize=16)
         plt.tick_params(axis='both', which='major', labelsize=14)
         
@@ -442,13 +477,12 @@ for file in os.listdir('.'):
         ax41.set_ylabel('Residuals')
         plt.setp(ax41, xticks=[800,1000,1200,1400,1600,1800])
         ax41.tick_params(direction='in',labelbottom=False,labelleft=True)
-        plt.autoscale(enable=True, axis='x', tight=True) 
-        
+        plt.xlim(750,1900)        
         plt.ylim(min(Residuals_nom)*1.15,max(Residuals_nom)*1.15)
         
         gs4.update(left=0.16,right=0.94,top=0.95,bottom=0.15) #as percentages of total figure with 1,1 in upper right
         fig.set_size_inches(6, 5) #width, height
-        plt.savefig(SaveName + '_fit.jpg', dpi=300)
+        plt.savefig(SaveName + '_fit.jpg', dpi = 600, bbox_inches='tight')
         plt.close()
         
         # ID/IG Ratio
@@ -548,7 +582,7 @@ for file in os.listdir('.'):
         # ax.set_xlim(0.1, 100)
         # ax.set_ylim(0.01, 100)
         # fig.set_size_inches(6, 5) #width, height
-        # plt.savefig(SaveName + '_Ratio.jpg',dpi=300)
+        # plt.savefig(SaveName + '_Ratio.jpg',dpi=300, bbox_inches='tight')
         
         # plt.close()
         
@@ -568,7 +602,7 @@ for file in os.listdir('.'):
         f.write("{}\t{}\t{}\n".format('Peak Fit R2ish', float(AdjR2_fit.n), float(AdjR2_fit.s)) )
         f.write("{}\t{}\t{}\n".format('Peak Fit SEE', float(SEE_fit.n), float(SEE_fit.s)) )
         
-        f.write("{}\t{}\t{}\n".format('qBWF', 0, 0) )
+        f.write("{}\t{}\t{}\n".format('qBWF/avgCorr', 0, avgCorr) )
         
         f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], dFit[0]) )
         f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[6], dFit[6] ))
