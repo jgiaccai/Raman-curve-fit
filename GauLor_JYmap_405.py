@@ -8,7 +8,8 @@
 ## 202308 mixed Gaussian and Lorentzian fitting
 ## 20230919 using adjusted R2 instead of R2 for baseline and signal fits
 ## 20231210 add in correlation matrix for individual fits and avgCorr calc
-
+## 20240608 correcting BWF peak location based on Ferrari and Robertson 2000
+fitVersion = 3.03 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
 
 import sys
 import numpy as np
@@ -46,20 +47,18 @@ FitD4On = 1
 FitTPOn = 1
 FitU1On = 1 #unidentified peak but need to include in envelope for 405 etc
 
-fitVersion = 3.02 #changing if there is a change to base fitting subtr or peak fitting or stats calc.  Not for making figures or summarizing data.
-
 base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [965, 1135, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
-G_bounds = [1590, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
-D_bounds = [1350, 60, 100, 40]
+G_bounds = [1585, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
+D_bounds = [1380, 60, 100, 40]
 D2_bounds = [1620, 40, 20, 10]
-D3_bounds = [1500, 50, 85, 80]
-D4_bounds = [1220, 25, 60, 55]
-TP_bounds = [1175, 25, 60, 55] 
+D3_bounds = [1550, 50, 85, 80]
+D4_bounds = [1235, 25, 60, 55]
+TP_bounds = [1190, 25, 100, 95] 
 U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in some 405 data
 IIM = 0.8 #Initial intensity multiplier for G and D peaks 
-qBWF = 0
+qBWF = -10
 # =============================================================================
 
 Ext_Lambda = 000 #nm
@@ -197,18 +196,18 @@ def EnterData():
     '''need to work G and D starting peak intensities from initial values'''
     FitParam[14]  = IIM*G_ints  # G peak intensity  
     FitParam[15]  = IIM*D_ints  # D peak intensity
-    FitParam[16] = (0.4*FitParam[14])
-    FitParam[17] = (0.4*FitParam[15])
-    FitParam[18] = (0.4*FitParam[15])
-    FitParam[19] = (0.4*FitParam[15])
-    FitParam[20]  = (0.25*FitParam[14]) 
+    FitParam[16] = (0.1*FitParam[14])
+    FitParam[17] = (0.1*FitParam[15])
+    FitParam[18] = (0.1*FitParam[15])
+    FitParam[19] = (0.1*FitParam[15])
+    FitParam[20]  = (0.05*FitParam[14]) 
 
     Gfit = FitGOn*lorentz(FitParam[0],FitParam[7],FitParam[14])
     Dfit = FitDOn*lorentz(FitParam[1],FitParam[8],FitParam[15])
     D2fit = FitD2On*lorentz(FitParam[2],FitParam[9],FitParam[16])
     D3fit = FitD3On*Gaussian(FitParam[3],FitParam[10],FitParam[17])
     D4fit = FitD4On*lorentz(FitParam[4],FitParam[11],FitParam[18])
-    TPfit = FitTPOn*lorentz(FitParam[6],FitParam[12],FitParam[19])
+    TPfit = FitTPOn*lorentz(FitParam[5],FitParam[12],FitParam[19])
     U1fit = FitU1On*Gaussian(FitParam[6],FitParam[13],FitParam[20])
 
     ModelFit = Gfit + Dfit + D2fit + D3fit + D4fit + TPfit + U1fit    
@@ -468,14 +467,11 @@ for file in os.listdir('.'):
     
             ModelFit = Gfit + Dfit +D2fit + D3fit + D4fit + + TPfit + U1fit
             
-            
             D2_ints = FitD2On*D2_ints
             D3_ints = FitD3On*D3_ints
             D4_ints = FitD4On*D4_ints
             TP_ints = FitTPOn*TP_ints
-            
-            TotalIntensity = G_ints + D_ints + D2_ints + D3_ints + D4_ints + TP_ints
-                      
+                                  
             Residuals = signal_fit - ModelFit
             ss_res = np.sum((Residuals) ** 2)
             ss_tot = np.sum((signal_fit - np.mean(signal_fit)) ** 2)
@@ -504,7 +500,7 @@ for file in os.listdir('.'):
             if FitD4On == 1:
                 ax40.plot(x_fit , D4fit_nom,'-m', label = 'D4 Peak Fit')
             if FitTPOn == 1:
-                ax40.plot(x_fit , TPfit_nom,'-y', label = 'D4 Peak Fit')
+                ax40.plot(x_fit , TPfit_nom,'-y', label = 'TPA Peak Fit')
             if FitU1On == 1:
                 ax40.plot(x_fit, U1fit_nom, '-y', label = 'U1 peak fit')
             ax40.plot(x_fit, ModelFit_nom,'-r', label = 'Summed Peak Fit')
@@ -531,39 +527,53 @@ for file in os.listdir('.'):
             plt.savefig(SaveName + '_fit.jpg', dpi=300)
             plt.close()
             
+            ## To correct the BWF G peak location from Ferrari and Robertson 2000
+            
+            GlocCorr = Gloc + Gwid/(qBWF)  #note our width is HWHM not FWHM 
+            sBWF = ((GlocCorr - Gloc)/Gwid)
+            G_intsCorr = (G_ints)*((1+sBWF/qBWF)**2/(1+sBWF**2))
+
+
             # ID/IG Ratio
-            Exp_ratio = D_ints/G_ints #with uncertainties
-            Exp_ratio = fit_results[15]/fit_results[14] # w/o uncertainties calc
+            Exp_ratio = D_ints/G_intsCorr #with uncertainties
+            Exp_ratio = fit_results[15]/G_intsCorr.n # w/o uncertainties calc
             
             # Calculation of uncertainties with covariances
             
-            Exp_ratio_stdev = Exp_ratio*((dFit[14]/fit_results[14])**2 + (dFit[15]/fit_results[15])**2 - 
-                                        (2*(covMatrix[15,14])/fit_results[14]/fit_results[15]))**0.5
-     # =============================================================================
-     ## this bit doesn't have TPA stuff but did correct matrix elements of what is there         
-     #TotIntstdev = (dFit[14]**2 + dFit[15]**2 + dFit[16]**2 + dFit[17]**2 + dFit[18]**2 + dFit[19]**2
-     #                       2*((covMatrix[15,14]) + (covMatrix[15,16]) + 
-     #                           (covMatrix[15,17]) + (covMatrix[15,18]) + 
-     #                          (covMatrix[16,14]) + (covMatrix[16,17]) +
-     #                           (covMatrix[16,18]) + (covMatrix[17,14]) + 
-     #                           (covMatrix[17,18]) + (covMatrix[18,14])))**0.5
-     # =============================================================================
-            IDIG = D_ints/G_ints  #with uncertainties calc
-            ID2IG = D2_ints/G_ints
+            #Exp_ratio_stdev = Exp_ratio*((dFit[14]/fit_results[14])**2 + (dFit[15]/fit_results[15])**2 - 
+             #                           (2*(covMatrix[15,14])/fit_results[14]/fit_results[15]))**0.5
+
+            Exp_ratio_stdev = Exp_ratio*((G_intsCorr.s/G_intsCorr.n)**2 + (dFit[15]/fit_results[15])**2 - 
+                                        (2*(covMatrix[15,14])/G_intsCorr.n/fit_results[15]))**0.5
+        
+        
+                # =============================================================================
+             ## this bit doesn't have TPA stuff but did correct matrix elements of what is there         
+             #TotIntstdev = (dFit[14]**2 + dFit[15]**2 + dFit[16]**2 + dFit[17]**2 + dFit[18]**2 + dFit[19]**2
+             #                       2*((covMatrix[15,14]) + (covMatrix[15,16]) + 
+             #                           (covMatrix[15,17]) + (covMatrix[15,18]) + 
+             #                          (covMatrix[16,14]) + (covMatrix[16,17]) +
+             #                           (covMatrix[16,18]) + (covMatrix[17,14]) + 
+             #                           (covMatrix[17,18]) + (covMatrix[18,14])))**0.5
+             # =============================================================================
+            IDIG = D_ints/G_intsCorr  #with uncertainties calc
+            ID2IG = D2_ints/G_intsCorr
             ID3ID = D3_ints/D_ints
             ID4ID = D4_ints/D_ints
             ITPID = TP_ints/D_ints
 
+            TotalIntensity = G_intsCorr + D_ints + D2_ints + D3_ints + D4_ints + TP_ints
+
             IDIT = D_ints/TotalIntensity
-            IGIT = G_ints/TotalIntensity
+            IGIT = G_intsCorr/TotalIntensity
             ID2IT = D2_ints/TotalIntensity
             ID3IT = D3_ints/TotalIntensity
             ID4IT = D4_ints/TotalIntensity
             ITPIT = TP_ints/TotalIntensity 
              
-     # =============================================================================
-     #         Calculating the conjugation length, La
-     # =============================================================================
+             # =============================================================================
+             #         Calculating the conjugation length, La
+             # =============================================================================
              
              # from Herdman and Miller 2011, based on Cancado et al. 2011 and Luchhese et al. 2010
     
@@ -650,9 +660,9 @@ for file in os.listdir('.'):
             
             f.write("{}\t{}\t{}\n".format('qBWF', qBWF, avgCorr) )
             
-            f.write("{}\t{}\t{}\n".format('G Band Peak Position', fit_results[0], dFit[0]) )
+            f.write("{}\t{}\t{}\n".format('G Band Peak Position', GlocCorr.n, GlocCorr.s) )
             f.write("{}\t{}\t{}\n".format('G Band Peak Width', fit_results[7], dFit[7] ))
-            f.write("{}\t{}\t{}\n".format('G Band Peak Intensity', fit_results[14],dFit[14]))
+            f.write("{}\t{}\t{}\n".format('G Band Peak Intensity', G_intsCorr.n,G_intsCorr.s))
             
             f.write("{}\t{}\t{}\n".format('D Band Peak Position',fit_results[1],dFit[1]))
             f.write("{}\t{}\t{}\n".format('D Band Peak Width',fit_results[8],dFit[8]))

@@ -1,5 +1,6 @@
 # 202309 automatically produces a correlation plot colored according to average laser color
 #        automatically drops any fit with a peak fit R2 less than 0.7 (can be set at top)
+# 202406 added TPA peak data into summary and output
 
 import os
 import fnmatch
@@ -98,21 +99,25 @@ for file in os.listdir('.'):
         ID3_IT = data[33]
         ID3_IT_unc = unc[33]        
         ID4_IT = data[34]
-        ID4_IT_unc = unc[34]        ### this is where TPA stuff will go
-        IG_IT = data[35]
-        IG_IT_unc = unc[35]        
+        ID4_IT_unc = unc[34]        
+        ITPA_IT = data[35]
+        ITPA_IT_unc = unc[35]
+        IG_IT = data[36]
+        IG_IT_unc = unc[36]        
         
-        ID2_IG = data[36]
-        ID2_IG_unc = unc[36]        
-        ID3_ID = data[37]
-        ID3_ID_unc = unc[37]        
-        ID4_ID = data[38]
-        ID4_ID_unc = unc[38]      ### more TPA stuff will go here
+        ID2_IG = data[37]
+        ID2_IG_unc = unc[37]        
+        ID3_ID = data[38]
+        ID3_ID_unc = unc[38]        
+        ID4_ID = data[39]
+        ID4_ID_unc = unc[39]      ### more TPA stuff will go here
+        ITPA_ID = data[40]
+        ITPA_ID_unc = unc[40] 
         
-        lowbkg_st = data[39]
-        lowbkg_end = unc[39]        
-        hibkg_st = data[38]
-        hibkg_end = unc[38]       
+        lowbkg_st = data[41]
+        lowbkg_end = unc[41]        
+        hibkg_st = data[42]
+        hibkg_end = unc[42]       
            
         scan_info = np.genfromtxt(fullFilename, dtype = str, delimiter = '\t', usecols = (1), skip_footer = (len(data)+1))
         fitting_info = filename.split(sep='_')[-1]
@@ -196,8 +201,8 @@ for file in os.listdir('.'):
             'ID3 IT Ratio unc': ID3_IT_unc ,
             'ID4 IT Ratio': ID4_IT ,
             'ID4 IT Ratio unc': ID4_IT_unc ,
-            #'ITPA IT Ratio': ITPA_IT ,
-            #'ITPA IT Ratio unc': ITPA_IT_unc ,      
+            'ITPA IT Ratio': ITPA_IT ,
+            'ITPA IT Ratio unc': ITPA_IT_unc ,      
             'IG IT Ratio': IG_IT ,
             'IG IT Ratio unc': IG_IT_unc ,            
             
@@ -207,8 +212,8 @@ for file in os.listdir('.'):
             'ID3 ID Ratio unc': ID3_ID_unc ,
             'ID4 ID Ratio': ID4_ID ,
             'ID4 ID Ratio unc': ID4_ID_unc ,
-            #'ITPA ID Ratio': ITPA_ID ,
-            #'ITPA ID Ratio unc': ITPA_ID_unc ,
+            'ITPA ID Ratio': ITPA_ID ,
+            'ITPA ID Ratio unc': ITPA_ID_unc ,
             
             'Filename': filename ,
             #'Noise': noise ,
@@ -229,17 +234,17 @@ elif num_pks.max() == 4:
     #print('found 4 loop')
     IndVar = Data[['D Peak Position','D Peak Width','G Peak Position','G Peak Width',
                    'ID IG Ratio', 'D3 Peak Position','D3 Peak Width',  
-                   'D4 Peak Position','D4 Peak Width']]
+                   'TPA Peak Position','TPA Peak Width']]
 elif num_pks.max() == 5:
     IndVar = Data[['D Peak Position','D Peak Width','G Peak Position','G Peak Width',
                    'ID IG Ratio', 'D3 Peak Position','D3 Peak Width', 
-                   'D4 Peak Position','D4 Peak Width', 'D2 Peak Position',
+                   'TPA Peak Position','TPA Peak Width', 'D2 Peak Position',
                    'D2 Peak Width']]
 else:
     IndVar = Data[['D Peak Position','D Peak Width','G Peak Position','G Peak Width',
                    'ID IG Ratio', 'D3 Peak Position','D3 Peak Width', 
-                   'D4 Peak Position','D4 Peak Width', 'D2 Peak Position',
-                   'D2 Peak Width', 'TPA Peak Position', 'TPA Peak Width']]
+                   'TPA Peak Position','TPA Peak Width', 'D2 Peak Position',
+                   'D2 Peak Width', 'D4 Peak Position', 'D4 Peak Width']]
 if exc_laser.mean() < 500:
     lasercolor = 'blue'
 elif exc_laser.mean() <600:
