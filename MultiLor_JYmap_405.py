@@ -41,7 +41,7 @@ from uncertainties.umath import log as ulog
 # 
 FitGOn = 1 # 1 is yes, 0 is no
 FitDOn = 1
-FitD2On = 0
+FitD2On = 1
 FitD3On = 1
 FitD4On = 0
 FitTPOn = 1
@@ -50,12 +50,12 @@ FitU1On = 1 #unidentified peak but need to include in envelope for 405 etc
 base_order = 3 #order of polynomial for bkg fitting, choose 1, 2, or 3
 bkd_bounds = [965, 1135, 1750, 2000] #low wavelength limits (low, high) and high wavelength limits (low, high)
 
-G_bounds = [1585, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits (currently unused)
+G_bounds = [1585, 50, 50, 40] # Center wavelength, wavelength limits, HWHM guess, HWHM limits 
 D_bounds = [1380, 60, 100, 40]
 D2_bounds = [1620, 40, 20, 10]
-D3_bounds = [1550, 50, 85, 80]
+D3_bounds = [1550, 25, 85, 80]
 D4_bounds = [1235, 25, 60, 55]
-TP_bounds = [1190, 25, 100, 95] 
+TP_bounds = [1190, 25, 99, 95] 
 U1_bounds = [1725, 20, 10, 8]  #no physical basis, trying because weird peak in some 405 data
 IIM = 0.8 #Initial intensity multiplier for G and D peaks 
 qBWF = -10
@@ -238,16 +238,16 @@ def EnterData():
     # plt.close()
     
 
-    lobounds[14] = 0.5*G_ints  # we might want to let G go to zero depending on D2
-    lobounds[15] = 0.5*D_ints
+    lobounds[14] = 0.1*G_ints  # we might want to let G go to zero depending on D2
+    lobounds[15] = 0.1*D_ints
     hibounds[14] = 1.2*G_ints
     hibounds[15] = 1.2*D_ints
 
-    hibounds[16] = 0.5*G_ints
-    hibounds[17] = 0.5*D_ints
-    hibounds[18] = 0.5*D_ints
-    hibounds[19] = 0.5*D_ints
-    hibounds[20] = 0.5*G_ints
+    hibounds[16] = 1.2*G_ints  # not limiting to 'minor' peaks
+    hibounds[17] = 1.2*D_ints
+    hibounds[18] = 1.2*D_ints
+    hibounds[19] = 1.2*D_ints
+    hibounds[20] = 1.2*G_ints
     
     bounds = (lobounds,hibounds)
     
@@ -260,7 +260,7 @@ def FitFunc(x_fit, *EvalSimp):
     D2fit = FitD2On*lorentz(EvalSimp[2],EvalSimp[9],EvalSimp[16])
     D3fit = FitD3On*lorentz(EvalSimp[3],EvalSimp[10],EvalSimp[17])
     D4fit = FitD4On*lorentz(EvalSimp[4],EvalSimp[11],EvalSimp[18])
-    TPfit = FitD4On*lorentz(EvalSimp[5],EvalSimp[12],EvalSimp[19])
+    TPfit = FitTPOn*lorentz(EvalSimp[5],EvalSimp[12],EvalSimp[19])
     U1fit = FitU1On*Gaussian(EvalSimp[6], EvalSimp[13], EvalSimp[20])
 
     
@@ -276,7 +276,7 @@ def FitFuncWithUnc(x_fit, *EvalSimp):
     D2fit = FitD2On*lorentz(EvalSimp[2],EvalSimp[9],EvalSimp[16])
     D3fit = FitD3On*lorentz(EvalSimp[3],EvalSimp[10],EvalSimp[17])
     D4fit = FitD4On*lorentz(EvalSimp[4],EvalSimp[11],EvalSimp[18])
-    TPfit = FitD4On*lorentz(EvalSimp[5],EvalSimp[12],EvalSimp[19])
+    TPfit = FitTPOn*lorentz(EvalSimp[5],EvalSimp[12],EvalSimp[19])
     U1fit = FitU1On*GaussianWithUnc(EvalSimp[6], EvalSimp[13], EvalSimp[20])
 
     
@@ -462,7 +462,7 @@ for file in os.listdir('.'):
             D2fit = FitD2On*lorentz(D2loc,D2wid,D2_ints)
             D3fit = FitD3On*lorentz(D3loc,D3wid,D3_ints)
             D4fit = FitD4On*lorentz(D4loc,D4wid,D4_ints)
-            TPfit = FitD4On*lorentz(TPloc,TPwid,TP_ints)
+            TPfit = FitTPOn*lorentz(TPloc,TPwid,TP_ints)
             U1fit = FitU1On*GaussianWithUnc(U1loc,U1wid,U1_ints)
     
             ModelFit = Gfit + Dfit +D2fit + D3fit + D4fit + + TPfit + U1fit
@@ -601,8 +601,11 @@ for file in os.listdir('.'):
              # we can neglect second exponential term as it gets very small compared to first term (by e-10)
              # however for LsubA close to 20, the two terms are close in value, so uncertainty only for low_La
              
-            low_La_calc = usqrt((-1*np.pi)/(ulog(((ra**2-2)/(ra**2-1))*(IDIG/CA))))
-            low_label = u'{:.2fP}'.format(low_La_calc)
+            if IDIG < 2.05:
+                low_La_calc = usqrt((-1*np.pi)/(ulog(((ra**2-2)/(ra**2-1))*(IDIG/CA))))
+                low_label = u'{:.2fP}'.format(low_La_calc)
+            else:
+                low_La_calc = x = ufloat(np.nan, np.nan) 
 
             
             Ratio = [Exp_ratio, Exp_ratio]
@@ -703,3 +706,7 @@ for file in os.listdir('.'):
             f.write("{}\t{}\t{}\n".format('bkd_low',bkd_bounds[0],bkd_bounds[1]))
             f.write("{}\t{}\t{}\n".format('bkd_hi',bkd_bounds[2],bkd_bounds[3])) 
             f.close()
+
+os.system('say "done" &')
+            
+            
