@@ -1,5 +1,5 @@
 # Imports .csv file from Wasatch Raman spectrometer
-# Loops to graph all spectra in folder
+# Loops to graph all spectra in folder  
 
 # Updated 10 Oct 2024 (Wasatch Enlighten v. 3.2.36)
 
