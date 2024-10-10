@@ -1,5 +1,7 @@
-# Imports .txt file from Wasatch Raman spectrometer
+# Imports .csv file from Wasatch Raman spectrometer
 # Loops to graph all spectra in folder
+
+# Updated 10 Oct 2024 (Wasatch Enlighten v. 3.2.36)
 
 import matplotlib.pyplot as plt
 import os
@@ -17,10 +19,11 @@ bkd_bounds = [80, 449, 450, 2000] #low wavelength limits (low, high) and high wa
 def ReadCollDetails(inputFilename):
     global CollDet, Ext_Lambda
 
-    noscans = int(linecache.getline(inputFilename,7).split(',')[1])
-    scantime_ms = int(linecache.getline(inputFilename,15).split(',')[1])  #milliseconds
-    Ext_Lambda = float(linecache.getline(inputFilename,25).split(',')[1])  #nm
-    laserpower = float(linecache.getline(inputFilename,27).split(',')[1])
+    noscans = int(linecache.getline(inputFilename,9).split(',')[1])
+    #print(noscans)
+    scantime_ms = int(linecache.getline(inputFilename,28).split(',')[1])  #milliseconds
+    Ext_Lambda = float(linecache.getline(inputFilename,40).split(',')[1])  #nm
+    laserpower = float(linecache.getline(inputFilename,42).split(',')[1])
     
     scantime = scantime_ms/1000
     
@@ -38,14 +41,14 @@ for file in os.listdir('.'):
         
         (CollDet,Ext_Lambda) = ReadCollDetails(file)
         
-        wavenum_yes_no = str(linecache.getline(Loadfile,31).split(',')[0])
+        wavenum_yes_no = str(linecache.getline(Loadfile,46).split(',')[0])
 
         if wavenum_yes_no == 'Wavenumber':
-            wavenum = np.loadtxt(Loadfile, usecols = 0, skiprows = (32),encoding='latin1', delimiter = ',')
-            signal = np.loadtxt(Loadfile, usecols = 1, skiprows = (32),encoding='latin1', delimiter = ',')
+            wavenum = np.loadtxt(Loadfile, usecols = 0, skiprows = (47),encoding='latin1', delimiter = ',')
+            signal = np.loadtxt(Loadfile, usecols = 1, skiprows = (47),encoding='latin1', delimiter = ',')
         elif wavenum_yes_no == 'Processed\n':
-            wavenum = np.loadtxt(wavefile, usecols = 0, skiprows = (32),encoding='latin1', delimiter = ',')
-            signal = np.loadtxt(Loadfile, usecols = 0, skiprows = (32),encoding='latin1', delimiter = ',')
+            wavenum = np.loadtxt(wavefile, usecols = 0, skiprows = (47),encoding='latin1', delimiter = ',')
+            signal = np.loadtxt(Loadfile, usecols = 0, skiprows = (47),encoding='latin1', delimiter = ',')
         else:
             print('cannot find data')
             continue
